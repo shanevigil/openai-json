@@ -1,5 +1,7 @@
 class SubstructureManager:
-    """Manages unmatched keys or structures for further processing."""
+    """
+    Manages unmatched keys or structures for further processing.
+    """
 
     def __init__(self):
         self.unmatched_data = {}
@@ -7,6 +9,9 @@ class SubstructureManager:
     def store_unmatched_keys(self, unmatched_keys: list, data: dict):
         """
         Stores keys and their corresponding data that don't match the schema.
+        Args:
+            unmatched_keys (list): List of keys not matched by the schema.
+            data (dict): The original response data from which unmatched keys are extracted.
         """
         for key in unmatched_keys:
             if key in data:
@@ -15,5 +20,13 @@ class SubstructureManager:
     def retrieve_unmatched_data(self):
         """
         Retrieves all unmatched data.
+        Returns:
+            dict: A dictionary of unmatched keys and their associated data.
         """
         return self.unmatched_data
+
+    def clear(self):
+        """
+        Clears the stored unmatched data.
+        """
+        self.unmatched_data.clear()

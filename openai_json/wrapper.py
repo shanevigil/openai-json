@@ -2,16 +2,22 @@ from openai_json.schema_handler import SchemaHandler
 from openai_json.api_interface import APIInterface
 from openai_json.heuristic_processor import HeuristicProcessor
 from openai_json.substructure_manager import SubstructureManager
+from openai_json.output_assembler import OutputAssembler
+from openai_json.ml_processor import MachineLearningProcessor
 
 
 class Wrapper:
-    """Integrates all components for end-to-end processing."""
+    """
+    Integrates all components for end-to-end processing.
+    """
 
-    def __init__(self, api_key):
+    def __init__(self, api_key, model_path=None):
         self.schema_handler = SchemaHandler()
         self.api_interface = APIInterface(api_key)
         self.heuristic_processor = HeuristicProcessor(self.schema_handler)
         self.substructure_manager = SubstructureManager()
+        self.output_assembler = OutputAssembler()
+        self.ml_processor = MachineLearningProcessor(model_path)
 
     def handle_request(self, query: str, schema: dict):
         """
@@ -37,8 +43,13 @@ class Wrapper:
         # Step 5: Store unmatched keys in SubstructureManager
         self.substructure_manager.store_unmatched_keys(unmatched_keys, parsed_response)
 
-        return {
-            "processed_data": processed_data,
-            "unmatched_keys": unmatched_keys,
-            "unmatched_data": self.substructure_manager.retrieve_unmatched_data(),
-        }
+        # Step 6: Process unmatched data with MachineLearningProcessor
+        unmatched_data = self.substructure_manager.retrieve_unmatched_data()
+        transformed_data = self.ml_processor.predict_transformations(unmatched_data)
+
+        # Step 7: Assemble the final output
+        final_output = self.output_assembler.assemble_output(
+            processed_data, transformed_data
+        )
+
+        return final_output

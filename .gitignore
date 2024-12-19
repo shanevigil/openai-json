@@ -1,0 +1,81 @@
+# Byte-compiled and cached Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment directory
+env/
+.venv/
+
+# Conda environment files
+*.conda
+*.env
+
+# Environment settings and configuration files
+.env
+.env.*
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Test coverage reports
+htmlcov/
+.coverage
+*.cover
+*.py,cover
+
+# Logs and debugging files
+*.log
+*.out
+*.err
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# IDE-specific files
+.vscode/
+.idea/
+*.iml
+
+# Compiled and temporary files
+*.swp
+*.swo
+*.bak
+*.tmp
+*.orig
+*.lock
+
+# Build artifacts and distribution files
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Documentation artifacts
+docs/_build/
+*.html
+*.pdf
+
+# Package dependencies
+*.egg
+*.wheel
+pip-log.txt
+
+# Ignore data directory content except committed structure
+data/*
+!data/schemas/
+!data/ml_model/
+!data/examples/
+
+# Ignore specific files in examples
+examples/*.log
+examples/*.tmp
+
+# Ignore specific Python tools and caches
+.mypy_cache/
+.pytest_cache/
+.pyright/
+
+# Ignore Github
+.github

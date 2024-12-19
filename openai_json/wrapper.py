@@ -9,12 +9,38 @@ import json
 
 class Wrapper:
     """
-    Integrates all components for end-to-end processing.
+    Coordinates the entire pipeline for processing JSON responses from the OpenAI API.
+
+    The Wrapper integrates multiple components to handle schema validation,
+    API interactions, heuristic and machine learning-based processing, and
+    final output assembly. It serves as the primary interface for end-to-end
+    structured JSON handling.
+
+    Attributes:
+        schema_handler (SchemaHandler): Manages schema submission and validation.
+        api_interface (APIInterface): Handles interactions with the OpenAI API.
+        heuristic_processor (HeuristicProcessor): Processes data using heuristic rules.
+        substructure_manager (SubstructureManager): Stores unmatched keys and their data.
+        output_assembler (OutputAssembler): Combines processed and transformed data.
+        ml_processor (MachineLearningProcessor): Predicts schema-compliant transformations.
     """
 
     def __init__(
-        self, gpt_api_key, model_path=None, gpt_model="gpt-4", gpt_temperature=0
+        self,
+        gpt_api_key: str,
+        model_path: str = None,
+        gpt_model: str = "gpt-4",
+        gpt_temperature: float = 0,
     ):
+        """
+        Initializes the Wrapper and its components.
+
+        Args:
+            gpt_api_key (str): OpenAI API key for authenticating requests.
+            model_path (str, optional): Path to the pre-trained machine learning model. Defaults to None.
+            gpt_model (str, optional): OpenAI model to use for queries. Defaults to "gpt-4".
+            gpt_temperature (float, optional): Sampling temperature for the model. Defaults to 0.
+        """
         self.schema_handler = SchemaHandler()
         self.api_interface = APIInterface(
             gpt_api_key, model=gpt_model, temperature=gpt_temperature
@@ -24,9 +50,26 @@ class Wrapper:
         self.output_assembler = OutputAssembler()
         self.ml_processor = MachineLearningProcessor(model_path)
 
-    def handle_request(self, query: str, schema: dict):
+    def handle_request(self, query: str, schema: dict) -> dict:
         """
-        Handles the entire pipeline: query -> response -> validation.
+        Processes a query end-to-end: sends the query to the OpenAI API, validates and processes
+        the response, and assembles a schema-compliant output.
+
+        Args:
+            query (str): The query string to send to the OpenAI API.
+            schema (dict): The schema dict defining the expected JSON structure.
+
+        Returns:
+            dict: The final schema-compliant JSON response, or an error dictionary if processing fails.
+
+        Workflow:
+            1. Submit the schema for validation.
+            2. Send the query to the OpenAI API and retrieve the raw response.
+            3. Parse the raw response into JSON format.
+            4. Apply heuristic rules to align data with the schema.
+            5. Identify and store unmatched keys using SubstructureManager.
+            6. Use MachineLearningProcessor to predict transformations for unmatched data.
+            7. Combine processed and transformed data into the final output.
         """
         # Step 1: Submit schema
         self.schema_handler.submit_schema(schema)

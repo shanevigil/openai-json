@@ -5,13 +5,17 @@ from sklearn.ensemble import RandomForestClassifier  # Example model
 class MachineLearningProcessor:
     """
     Uses a trained machine learning model to handle unmatched keys or structures.
+
+    This class predicts schema-compliant transformations for unmatched keys
+    and values using a pre-trained machine learning model.
     """
 
     def __init__(self, model_path: str = None):
         """
-        Initializes the processor by loading the pre-trained model.
+        Initializes the processor and optionally loads a pre-trained model.
+
         Args:
-            model_path (str): Path to the trained model file.
+            model_path (str, optional): Path to the trained model file. If None, no model is loaded.
         """
         self.model = None
         if model_path:
@@ -20,8 +24,12 @@ class MachineLearningProcessor:
     def load_model(self, model_path: str):
         """
         Loads the machine learning model from a file.
+
         Args:
             model_path (str): Path to the trained model file.
+
+        Raises:
+            ValueError: If the model file cannot be loaded.
         """
         try:
             self.model = joblib.load(model_path)
@@ -30,12 +38,15 @@ class MachineLearningProcessor:
 
     def predict_transformations(self, unmatched_data: dict) -> dict:
         """
-        Predicts transformations for unmatched data using the model.
-        If no model is loaded, return the unmatched data unchanged.
+        Predicts schema-compliant transformations for unmatched keys and values.
+
+        If no model is loaded, the unmatched data is returned unchanged.
+
         Args:
-            unmatched_data (dict): Data that doesn't match the schema.
+            unmatched_data (dict): A dictionary of keys and values that do not match the schema.
+
         Returns:
-            dict: Transformed data compliant with the schema.
+            dict: A dictionary of transformed keys and values compliant with the schema.
         """
         if not self.model:
             # Return unmatched data unchanged if no model is loaded
@@ -52,19 +63,24 @@ class MachineLearningProcessor:
 
         return transformed_data
 
-    def _prepare_features(self, key, value):
+    def _prepare_features(self, key: str, value) -> list:
         """
-        Converts a key-value pair into a feature vector for the model.
+        Converts a key-value pair into a feature vector suitable for the model.
+
+        This method is used to extract features from unmatched data for prediction.
+        The feature extraction logic can be customized based on the use case.
+
         Args:
-            key (str): Key from the unmatched data.
-            value: Value from the unmatched data.
+            key (str): The unmatched key.
+            value: The value associated with the unmatched key.
+
         Returns:
-            list: Feature vector for the model.
+            list: A feature vector representing the key and value.
         """
         # Example feature extraction (customize this as needed)
         return [
-            len(key),
-            len(str(value)),
-            isinstance(value, (int, float)),
-            isinstance(value, str),
+            len(key),  # Length of the key
+            len(str(value)),  # Length of the string representation of the value
+            isinstance(value, (int, float)),  # Boolean: is the value numeric?
+            isinstance(value, str),  # Boolean: is the value a string?
         ]

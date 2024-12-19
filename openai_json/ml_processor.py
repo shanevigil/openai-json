@@ -1,3 +1,4 @@
+import logging
 import joblib
 from sklearn.ensemble import RandomForestClassifier  # Example model
 
@@ -17,6 +18,7 @@ class MachineLearningProcessor:
         Args:
             model_path (str, optional): Path to the trained model file. If None, no model is loaded.
         """
+        self.logger = logging.getLogger(__name__)
         self.model = None
         if model_path:
             self.load_model(model_path)
@@ -31,9 +33,12 @@ class MachineLearningProcessor:
         Raises:
             ValueError: If the model file cannot be loaded.
         """
+        self.logger.info("Attempting to load model from path: %s", model_path)
         try:
             self.model = joblib.load(model_path)
+            self.logger.info("Model loaded successfully from %s.", model_path)
         except Exception as e:
+            self.logger.error("Failed to load model from %s: %s", model_path, e)
             raise ValueError(f"Failed to load model from {model_path}: {e}")
 
     def predict_transformations(self, unmatched_data: dict) -> dict:
@@ -49,18 +54,40 @@ class MachineLearningProcessor:
             dict: A dictionary of transformed keys and values compliant with the schema.
         """
         if not self.model:
-            # Return unmatched data unchanged if no model is loaded
+            self.logger.warning("No model loaded. Returning unmatched data unchanged.")
             return unmatched_data
 
+        self.logger.debug(
+            "Predicting transformations for unmatched data: %s", unmatched_data
+        )
         transformed_data = {}
+
         for key, value in unmatched_data.items():
             try:
                 feature_vector = self._prepare_features(key, value)
+                self.logger.debug(
+                    "Generated feature vector for key '%s': %s", key, feature_vector
+                )
+
                 transformed_value = self.model.predict([feature_vector])[0]
                 transformed_data[key] = transformed_value
+
+                self.logger.debug(
+                    "Predicted transformation for key '%s': original value '%s', transformed value '%s'.",
+                    key,
+                    value,
+                    transformed_value,
+                )
             except Exception as e:
                 transformed_data[key] = f"Error processing {key}: {e}"
+                self.logger.error(
+                    "Error predicting transformation for key '%s' with value '%s': %s",
+                    key,
+                    value,
+                    e,
+                )
 
+        self.logger.info("Transformation predictions completed: %s", transformed_data)
         return transformed_data
 
     def _prepare_features(self, key: str, value) -> list:
@@ -77,10 +104,13 @@ class MachineLearningProcessor:
         Returns:
             list: A feature vector representing the key and value.
         """
+        self.logger.debug("Preparing features for key '%s' and value '%s'.", key, value)
         # Example feature extraction (customize this as needed)
-        return [
+        feature_vector = [
             len(key),  # Length of the key
             len(str(value)),  # Length of the string representation of the value
             isinstance(value, (int, float)),  # Boolean: is the value numeric?
             isinstance(value, str),  # Boolean: is the value a string?
         ]
+        self.logger.debug("Feature vector for key '%s': %s", key, feature_vector)
+        return feature_vector

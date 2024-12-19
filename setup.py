@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="openai-json",
     version="0.1.0",
-    description="A Python wrapper for processing and structuring JSON responses from the OpenAI API.",
+    description="A Python OpenAI_JSON for processing and structuring JSON responses from the OpenAI API.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Shane Vigil",
@@ -30,7 +30,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    keywords="openai json wrapper schema machine-learning api",
+    keywords="openai json OpenAI_JSON schema machine-learning api",
     project_urls={
         "Bug Tracker": "https://github.com/shanevigil/openai-json/issues",  # TODO Add my username
         "Source Code": "https://github.com/shanevigil/openai-json",  # TODO Add my username

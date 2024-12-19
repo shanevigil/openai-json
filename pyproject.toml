@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "openai-json"
 version = "0.1.0"
-description = "A Python wrapper for processing and structuring JSON responses from the OpenAI API."
+description = "A Python OpenAI_JSON for processing and structuring JSON responses from the OpenAI API."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "Shane Vigil", email = "savigil@gmail.com"}
 ]
-keywords = ["openai", "json", "wrapper", "schema", "machine-learning", "api"]
+keywords = ["openai", "json", "OpenAI_JSON", "schema", "machine-learning", "api"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",

@@ -1,7 +1,8 @@
-openai
-joblib
-scikit-learn
-jsonschema
-requests
-sphinx
-sphinx-rtd-theme
+flake8==7.1.1               # For linting
+joblib==1.4.2               # For model serialization
+jsonschema==4.23.0          # For schema validation
+openai==1.58.1              # For OpenAI API interactions
+pytest==8.3.4               # For testing
+scikit-learn==1.6.0         # For machine learning models
+Sphinx==7.4.7               # For documentation
+sphinx-rtd-theme==3.0.2     # For documentation theme

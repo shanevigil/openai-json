@@ -1,4 +1,4 @@
-name: /home/savigil/WORKSPACE/openapi_json_wrapper/env
+name: /home/savigil/WORKSPACE/openapi_json_OpenAI_JSON/env
 channels:
   - pytorch
   - defaults
@@ -55,4 +55,4 @@ dependencies:
       - tomli==2.2.1
       - tqdm==4.67.1
       - typing-extensions==4.12.2
-prefix: /home/savigil/WORKSPACE/openapi_json_wrapper/env
+prefix: /home/savigil/WORKSPACE/openapi_json_OpenAI_JSON/env

@@ -1,4 +1,4 @@
-# OpenAI-JSON: A Python Wrapper for Structured JSON Responses
+# OpenAI-JSON: A Python OpenAI_JSON for Structured JSON Responses
 
 ![Build Status](https://github.com/shanevigil/openai-json/actions/workflows/test-build.yml/badge.svg)
 
@@ -51,20 +51,20 @@ OpenAI-JSON is a Python package designed to streamline interactions with OpenAI'
 ## Usage
 ### Basic Workflow
 Define a Schema: Create a schema that defines the expected JSON structure.
-Send a Query: Use the Wrapper class to send a query to OpenAI's ChatGPT API.
-Receive Structured Output: The wrapper processes the response to conform to the schema.
+Send a Query: Use the OpenAI_JSON class to send a query to OpenAI's ChatGPT API.
+Receive Structured Output: The OpenAI_JSON processes the response to conform to the schema.
 
 
 ### Example Script
 Here's an example script to get started:
 
 ```python
-from openai_json.wrapper import Wrapper
+from openai_json.openai_json import OpenAI_JSON
 
-# Initialize the wrapper
+# Initialize the OpenAI_JSON
 api_key = "your-openai-api-key"
 model_path = "data/ml_model/your_model.pkl"
-wrapper = Wrapper(api_key, model_path)
+client = OpenAI_JSON(api_key, model_path)
 
 # Define the schema
 schema = {
@@ -75,7 +75,7 @@ schema = {
 
 # Send a query
 query = "Provide information about a user including their name, age, and email."
-response = wrapper.handle_request(query, schema)
+response = OpenAI_JSON.handle_request(query, schema)
 
 # Print the structured output
 print(response)
@@ -84,7 +84,7 @@ The project follows a modular and organized structure:
 ```
 
 ```bash
-openai_json_wrapper/
+openai_json_OpenAI_JSON/
 ├── openai_json/               # Core package
 ├── tests/                     # Unit and integration tests
 ├── data/                      # Schemas, ML models, and examples

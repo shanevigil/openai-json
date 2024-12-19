@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from openai_json.wrapper import Wrapper
+from openai_json.openai_json import OpenAI_JSON
 
 
 @pytest.fixture
@@ -16,17 +16,17 @@ def expected_messages():
     return build
 
 
-def test_wrapper_valid(mock_openai_client, expected_messages):
-    """Test the Wrapper class with a valid OpenAI API response."""
+def test_OpenAI_JSON_valid(mock_openai_client, expected_messages):
+    """Test the OpenAI_JSON class with a valid OpenAI API response."""
     mock_client, set_mock_response, expected_system_message = mock_openai_client
 
     set_mock_response('{"name": "John", "age": 30, "email": "john@example.com"}')
 
-    wrapper = Wrapper(gpt_api_key="mock-api-key")
+    client = OpenAI_JSON(gpt_api_key="mock-api-key")
     schema = {"name": str, "age": int, "email": str}
     query = "Generate a JSON object with name, age, and email."
 
-    response = wrapper.handle_request(query, schema)
+    response = client.handle_request(query, schema)
 
     assert response["processed_data"] == {
         "name": "John",
@@ -42,21 +42,21 @@ def test_wrapper_valid(mock_openai_client, expected_messages):
     )
 
 
-def test_wrapper_with_custom_model_and_temperature(
+def test_OpenAI_JSON_with_custom_model_and_temperature(
     mock_openai_client, expected_messages
 ):
-    """Test the Wrapper class with a custom model and temperature."""
+    """Test the OpenAI_JSON class with a custom model and temperature."""
     mock_client, set_mock_response, expected_system_message = mock_openai_client
     set_mock_response('{"name": "Alice", "age": 25, "email": "alice@example.com"}')
 
-    wrapper = Wrapper(
+    client = OpenAI_JSON(
         gpt_api_key="mock-api-key", gpt_model="custom-model", gpt_temperature=0.8
     )
 
     schema = {"name": str, "age": int, "email": str}
     query = "Generate a JSON object with name, age, and email."
 
-    response = wrapper.handle_request(query, schema)
+    response = client.handle_request(query, schema)
 
     assert response["processed_data"] == {
         "name": "Alice",
@@ -72,19 +72,19 @@ def test_wrapper_with_custom_model_and_temperature(
     )
 
 
-def test_wrapper_with_output_assembler(mock_openai_client, expected_messages):
+def test_OpenAI_JSON_with_output_assembler(mock_openai_client, expected_messages):
     mock_client, set_mock_response, expected_system_message = mock_openai_client
 
     set_mock_response(
         '{"name": "John", "age": 30, "email": "john@example.com", "extra_key": "extra_value"}'
     )
 
-    wrapper = Wrapper(gpt_api_key="mock-api-key")
+    client = OpenAI_JSON(gpt_api_key="mock-api-key")
 
     schema = {"name": str, "age": int, "email": str}
     query = "Generate a JSON object with name, age, email, and extra data."
 
-    response = wrapper.handle_request(query, schema)
+    response = client.handle_request(query, schema)
 
     assert response["processed_data"] == {
         "name": "John",
@@ -102,7 +102,7 @@ def test_wrapper_with_output_assembler(mock_openai_client, expected_messages):
 
 @patch("openai_json.ml_processor.MachineLearningProcessor.load_model")
 @patch("openai_json.ml_processor.MachineLearningProcessor.predict_transformations")
-def test_wrapper_with_ml_processor(
+def test_OpenAI_JSON_with_ml_processor(
     mock_predict, mock_load_model, mock_openai_client, expected_messages
 ):
     mock_client, set_mock_response, expected_system_message = mock_openai_client
@@ -111,12 +111,12 @@ def test_wrapper_with_ml_processor(
 
     mock_predict.return_value = {"extra_key": "transformed_value"}
 
-    wrapper = Wrapper(gpt_api_key="mock-api-key", model_path="mock-model.pkl")
+    client = OpenAI_JSON(gpt_api_key="mock-api-key", model_path="mock-model.pkl")
 
     schema = {"name": str, "age": int}
     query = "Generate a JSON object with name, age, and extra data."
 
-    response = wrapper.handle_request(query, schema)
+    response = client.handle_request(query, schema)
 
     assert response["processed_data"] == {"name": "John", "age": 30}
     assert response["unmatched_data"] == {"extra_key": "transformed_value"}

@@ -28,6 +28,14 @@ openai\_json.ml\_processor module
    :undoc-members:
    :show-inheritance:
 
+openai\_json.openai\_json module
+--------------------------------
+
+.. automodule:: openai_json.openai_json
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 openai\_json.output\_assembler module
 -------------------------------------
 
@@ -56,14 +64,6 @@ openai\_json.utils module
 -------------------------
 
 .. automodule:: openai_json.utils
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-openai\_json.OpenAI_JSON module
----------------------------
-
-.. automodule:: openai_json.openai_json
    :members:
    :undoc-members:
    :show-inheritance:

@@ -1,17 +1,14 @@
 .. OpenAI-JSON documentation master file, created by
-   sphinx-quickstart on Thu Dec 19 10:27:46 2024.
+   sphinx-quickstart on Mon Dec 19 2024.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-OpenAI-JSON documentation
-=========================
-
-Add your content using ``reStructuredText`` syntax. See the
-`reStructuredText <https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html>`_
-documentation for details.
-
+Welcome to OpenAI-JSON's documentation!
+=======================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   modules
+   openai_json

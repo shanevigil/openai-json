@@ -8,7 +8,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Shane Vigil",
     author_email="savigil@gmail.com",
-    url="https://github.com/shanevigil/openai-json", # TODO Add my username
+    url="https://github.com/shanevigil/openai-json",  # TODO Add my username
     license="MIT",
     packages=find_packages(where="openai_json"),
     package_dir={"": "openai_json"},
@@ -32,7 +32,7 @@ setup(
     ],
     keywords="openai json wrapper schema machine-learning api",
     project_urls={
-        "Bug Tracker": "https://github.com/shanevigil/openai-json/issues", # TODO Add my username
-        "Source Code": "https://github.com/shanevigil/openai-json", # TODO Add my username
+        "Bug Tracker": "https://github.com/shanevigil/openai-json/issues",  # TODO Add my username
+        "Source Code": "https://github.com/shanevigil/openai-json",  # TODO Add my username
     },
 )

@@ -10,10 +10,16 @@ class HeuristicProcessor:
         processed = {}
         unmatched_keys = []
 
-        for key, expected_type in schema.items():
-            if key in data and isinstance(data[key], expected_type):
-                processed[key] = data[key]
+        # Check keys in the data to find extra keys
+        for key, value in data.items():
+            if key in schema and isinstance(value, schema[key]):
+                processed[key] = value
             else:
+                unmatched_keys.append(key)
+
+        # Check for keys in the schema that are missing from the data
+        for key in schema:
+            if key not in data:
                 unmatched_keys.append(key)
 
         return processed, unmatched_keys

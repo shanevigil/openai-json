@@ -20,7 +20,9 @@ def test_heuristic_processor_unmatched_keys():
     schema_handler.submit_schema(schema)
     processor = HeuristicProcessor(schema_handler)
 
+    # Data contains an extra key (email) and is missing a required key (age)
     data = {"name": "John", "email": "john@example.com"}
     processed, unmatched = processor.process(data)
+
     assert processed == {"name": "John"}
-    assert unmatched == ["age"]
+    assert unmatched == ["email", "age"]

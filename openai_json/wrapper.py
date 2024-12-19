@@ -1,6 +1,7 @@
 from openai_json.schema_handler import SchemaHandler
 from openai_json.api_interface import APIInterface
 from openai_json.heuristic_processor import HeuristicProcessor
+from openai_json.substructure_manager import SubstructureManager
 
 
 class Wrapper:
@@ -10,9 +11,12 @@ class Wrapper:
         self.schema_handler = SchemaHandler()
         self.api_interface = APIInterface(api_key)
         self.heuristic_processor = HeuristicProcessor(self.schema_handler)
+        self.substructure_manager = SubstructureManager()
 
     def handle_request(self, query: str, schema: dict):
-        """Handles the entire pipeline: query -> response -> validation."""
+        """
+        Handles the entire pipeline: query -> response -> validation.
+        """
         # Step 1: Submit schema
         self.schema_handler.submit_schema(schema)
 
@@ -30,4 +34,11 @@ class Wrapper:
             parsed_response
         )
 
-        return {"processed_data": processed_data, "unmatched_keys": unmatched_keys}
+        # Step 5: Store unmatched keys in SubstructureManager
+        self.substructure_manager.store_unmatched_keys(unmatched_keys, parsed_response)
+
+        return {
+            "processed_data": processed_data,
+            "unmatched_keys": unmatched_keys,
+            "unmatched_data": self.substructure_manager.retrieve_unmatched_data(),
+        }

@@ -44,7 +44,7 @@ OpenAI-JSON is a Python package designed to streamline interactions with OpenAI'
 
 3. Alternatively, install dependencies using pip:
 
-    '''bash
+    ```bash
     pip install -r requirements.txt
     ```
 
@@ -58,34 +58,32 @@ Receive Structured Output: The wrapper processes the response to conform to the 
 ### Example Script
 Here's an example script to get started:
 
-    ```python
-    Copy code
-    from openai_json.wrapper import Wrapper
+```python
+from openai_json.wrapper import Wrapper
 
-    # Initialize the wrapper
-    api_key = "your-openai-api-key"
-    model_path = "data/ml_model/your_model.pkl"
-    wrapper = Wrapper(api_key, model_path)
+# Initialize the wrapper
+api_key = "your-openai-api-key"
+model_path = "data/ml_model/your_model.pkl"
+wrapper = Wrapper(api_key, model_path)
 
-    # Define the schema
-    schema = {
-        "name": str,
-        "age": int,
-        "email": str
-    }
+# Define the schema
+schema = {
+    "name": str,
+    "age": int,
+    "email": str
+}
 
-    # Send a query
-    query = "Provide information about a user including their name, age, and email."
-    response = wrapper.handle_request(query, schema)
+# Send a query
+query = "Provide information about a user including their name, age, and email."
+response = wrapper.handle_request(query, schema)
 
-    # Print the structured output
-    print(response)
-    Directory Structure
-    The project follows a modular and organized structure:
-    ```
+# Print the structured output
+print(response)
+Directory Structure
+The project follows a modular and organized structure:
+```
 
 ```bash
-Copy code
 openai_json_wrapper/
 ├── openai_json/               # Core package
 ├── tests/                     # Unit and integration tests
@@ -105,7 +103,6 @@ openai_json_wrapper/
 To ensure everything works as expected, run the test suite using pytest:
 
 ```bash
-Copy code
 pytest tests/
 Training the ML Model
 For handling complex JSON variations, you can train a custom machine learning model. Place the model in the data/ml_model/ directory. Example training script can be provided in examples/.

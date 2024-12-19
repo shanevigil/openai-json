@@ -1,56 +1,91 @@
-from unittest.mock import patch, MagicMock
 import pytest
+from unittest.mock import patch
 from openai_json.wrapper import Wrapper
 
 
-@patch("openai.OpenAI")
-def test_wrapper_valid(mock_create):
-    mock_create.return_value = {
-        "choices": [
-            {
-                "message": {
-                    "content": '{"name": "John", "age": 30, "email": "john@example.com"}'
-                }
-            }
-        ]
-    }
+@pytest.fixture
+def expected_messages():
+    """Fixture to construct expected messages with a system message."""
 
-    api_key = "mock-api-key"
-    wrapper = Wrapper(api_key)
+    def build(query, system_message="Respond in valid JSON format."):
+        return [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": query},
+        ]
+
+    return build
+
+
+def test_wrapper_valid(mock_openai_client, expected_messages):
+    """Test the Wrapper class with a valid OpenAI API response."""
+    mock_client, set_mock_response, expected_system_message = mock_openai_client
+
+    set_mock_response('{"name": "John", "age": 30, "email": "john@example.com"}')
+
+    wrapper = Wrapper(gpt_api_key="mock-api-key")
     schema = {"name": str, "age": int, "email": str}
     query = "Generate a JSON object with name, age, and email."
 
     response = wrapper.handle_request(query, schema)
 
-    # Ensure processed_data contains the correct data
     assert response["processed_data"] == {
         "name": "John",
         "age": 30,
         "email": "john@example.com",
     }
-
-    # Ensure unmatched_data is empty as there are no extra keys
     assert "unmatched_data" not in response
 
+    mock_client.chat.completions.create.assert_called_once_with(
+        model="gpt-4",
+        messages=expected_messages(query, expected_system_message),
+        temperature=0,
+    )
 
-@patch("openai.OpenAI")
-def test_wrapper_with_output_assembler(mock_create):
-    mock_create.return_value = {
-        "choices": [
-            {
-                "message": {
-                    "content": '{"name": "John", "age": 30, "email": "john@example.com", "extra_key": "extra_value"}'
-                }
-            }
-        ]
+
+def test_wrapper_with_custom_model_and_temperature(
+    mock_openai_client, expected_messages
+):
+    """Test the Wrapper class with a custom model and temperature."""
+    mock_client, set_mock_response, expected_system_message = mock_openai_client
+    set_mock_response('{"name": "Alice", "age": 25, "email": "alice@example.com"}')
+
+    wrapper = Wrapper(
+        gpt_api_key="mock-api-key", gpt_model="custom-model", gpt_temperature=0.8
+    )
+
+    schema = {"name": str, "age": int, "email": str}
+    query = "Generate a JSON object with name, age, and email."
+
+    response = wrapper.handle_request(query, schema)
+
+    assert response["processed_data"] == {
+        "name": "Alice",
+        "age": 25,
+        "email": "alice@example.com",
     }
+    assert "unmatched_data" not in response
 
-    api_key = "mock-api-key"
-    wrapper = Wrapper(api_key)
+    mock_client.chat.completions.create.assert_called_once_with(
+        model="custom-model",
+        messages=expected_messages(query, expected_system_message),
+        temperature=0.8,
+    )
+
+
+def test_wrapper_with_output_assembler(mock_openai_client, expected_messages):
+    mock_client, set_mock_response, expected_system_message = mock_openai_client
+
+    set_mock_response(
+        '{"name": "John", "age": 30, "email": "john@example.com", "extra_key": "extra_value"}'
+    )
+
+    wrapper = Wrapper(gpt_api_key="mock-api-key")
+
     schema = {"name": str, "age": int, "email": str}
     query = "Generate a JSON object with name, age, email, and extra data."
 
     response = wrapper.handle_request(query, schema)
+
     assert response["processed_data"] == {
         "name": "John",
         "age": 30,
@@ -58,39 +93,37 @@ def test_wrapper_with_output_assembler(mock_create):
     }
     assert response["unmatched_data"] == {"extra_key": "extra_value"}
 
+    mock_client.chat.completions.create.assert_called_once_with(
+        model="gpt-4",
+        messages=expected_messages(query, expected_system_message),
+        temperature=0,
+    )
+
 
 @patch("openai_json.ml_processor.MachineLearningProcessor.load_model")
 @patch("openai_json.ml_processor.MachineLearningProcessor.predict_transformations")
-@patch("openai.OpenAI")
-def test_wrapper_with_ml_processor(mock_openai, mock_predict, mock_load_model):
-    """Test the Wrapper class with mocked ML processor and OpenAI API."""
-    mock_client = MagicMock()
-    mock_openai.return_value = mock_client
+def test_wrapper_with_ml_processor(
+    mock_predict, mock_load_model, mock_openai_client, expected_messages
+):
+    mock_client, set_mock_response, expected_system_message = mock_openai_client
 
-    # Mock API response
-    mock_response = MagicMock()
-    mock_response.choices = [
-        MagicMock(
-            message=MagicMock(
-                content='{"name": "John", "age": 30, "extra_key": "extra_value"}'
-            )
-        )
-    ]
-    mock_client.chat.completions.create.return_value = mock_response
+    set_mock_response('{"name": "John", "age": 30, "extra_key": "extra_value"}')
 
-    # Mock predictions for unmatched keys
     mock_predict.return_value = {"extra_key": "transformed_value"}
 
-    wrapper = Wrapper(api_key="mock-api-key", model_path="mock-model.pkl")
+    wrapper = Wrapper(gpt_api_key="mock-api-key", model_path="mock-model.pkl")
 
     schema = {"name": str, "age": int}
     query = "Generate a JSON object with name, age, and extra data."
 
     response = wrapper.handle_request(query, schema)
 
-    # Assertions
     assert response["processed_data"] == {"name": "John", "age": 30}
     assert response["unmatched_data"] == {"extra_key": "transformed_value"}
 
-    mock_client.chat.completions.create.assert_called_once()
+    mock_client.chat.completions.create.assert_called_once_with(
+        model="gpt-4",
+        messages=expected_messages(query, expected_system_message),
+        temperature=0,
+    )
     mock_predict.assert_called_once_with({"extra_key": "extra_value"})

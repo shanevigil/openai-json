@@ -5,7 +5,13 @@ import openai
 
 
 class APIInterface:
-    """Handles interactions with OpenAI's ChatGPT API."""
+    """
+    A class to handle interactions with OpenAI's ChatGPT API, focusing on generating JSON outputs.
+
+    This class provides methods to communicate with OpenAI's API, including retry logic
+    and validation of JSON responses. It is designed to guide the API towards structured outputs
+    using system-level instructions and allows fine-tuning of API behavior via parameters.
+    """
 
     def __init__(
         self,
@@ -17,15 +23,30 @@ class APIInterface:
         schema=None,
     ):
         """
-        Initializes the API interface.
+        Initialize the API interface.
 
         Args:
-            api_key (str): API key for OpenAI.
-            model (str): OpenAI model to use (default: "gpt-4").
-            retries (int): Number of retries for API calls (default: 3).
-            system_message (str): System message to guide ChatGPT responses.
-            temperature (float): Sampling temperature for the model (default: 0).
-            schema (dict): JSON schema for validation of responses.
+            api_key (str): API key for OpenAI to authenticate requests.
+            model (str, optional): The OpenAI model to use for generating responses.
+                Defaults to "gpt-4".
+            retries (int, optional): The number of retry attempts for API calls in case of failure.
+                Defaults to 3.
+            system_message (str, optional): A system-level message to guide the ChatGPT model
+                towards specific behavior or output formats. Defaults to "Respond in valid JSON format.".
+            temperature (float, optional): Sampling temperature for the model, controlling randomness
+                in responses. A value closer to 0 produces deterministic outputs, while higher values
+                generate more diverse outputs. Defaults to 0.0.
+            schema (dict, optional): JSON schema for validating responses. If provided, the schema
+                is used to ensure the output adheres to expected structures. Defaults to None.
+
+        Attributes:
+            client (openai.OpenAI): OpenAI client initialized with the provided API key.
+            model (str): The OpenAI model to be used for API calls.
+            retries (int): Number of retry attempts for API calls.
+            system_message (str): Instruction message to guide the model's output.
+            temperature (float): Sampling temperature for response generation.
+            schema (dict): JSON schema used for validating responses.
+            logger (logging.Logger): Logger instance for logging API interactions and errors.
         """
         self.client = openai.OpenAI(api_key=api_key)
         self.model = model
@@ -38,16 +59,20 @@ class APIInterface:
 
     def send_query(self, query: str):
         """
-        Sends a query to the ChatGPT API.
+        Send a query to the ChatGPT API and handle the response.
+
+        This method communicates with the OpenAI ChatGPT API using the provided query, handles
+        retry logic for transient errors, and validates the API response for JSON compliance.
 
         Args:
-            query (str): User query to send to the API.
+            query (str): The user-provided query or prompt to send to the ChatGPT API.
 
         Returns:
-            str: The response content from the API.
+            str: The raw content of the response from the ChatGPT API, validated as a JSON-compatible string.
 
         Raises:
-            RuntimeError: If the API call fails after retries.
+            ValueError: If the API returns a response that is not valid JSON and retries are exhausted.
+            RuntimeError: If the API call fails after exhausting all retry attempts due to transient errors.
         """
         self.logger.debug("Sending query: %s", query)
 
@@ -62,7 +87,7 @@ class APIInterface:
                 self.logger.debug("Attempting API call. Retries remaining: %d", retries)
 
                 # Send the request
-                response = openai.OpenAI(
+                response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     temperature=self.temperature,
@@ -78,15 +103,23 @@ class APIInterface:
                 self.logger.debug("Raw response content: %s", content)
 
                 # Verify JSON validity
-                try:
-                    json.loads(content)
-                    return content
-                except json.JSONDecodeError:
-                    self.logger.warning("Received invalid JSON response: %s", content)
-                    raise ValueError("Invalid JSON response")
+                json.loads(content)
+                return content
 
-            except (requests.exceptions.RequestException, ValueError) as e:
-                self.logger.error("Error occurred: %s", e)
+            except json.JSONDecodeError as e:
+                self.logger.warning(
+                    "Invalid JSON response received. Retrying... (%d retries left)",
+                    retries - 1,
+                )
+                retries -= 1
+                if retries == 0:
+                    self.logger.error(
+                        "Exhausted retries due to invalid JSON: %s", str(e)
+                    )
+                    raise ValueError("Invalid JSON response after retries") from e
+
+            except requests.exceptions.RequestException as e:
+                self.logger.error("HTTP error occurred: %s", e)
                 retries -= 1
                 if retries == 0:
                     self.logger.critical(
@@ -97,13 +130,21 @@ class APIInterface:
                     )
 
             except Exception as e:
+                retries -= 1
+
                 if self._is_retryable_error(e):
                     self.logger.warning("Retryable error occurred: %s", e)
                 else:
                     self.logger.error("Non-retryable error occurred: %s", e)
-                    raise
+                    if retries == 0:
+                        self.logger.critical(
+                            "API query failed after %d retries: %s", self.retries, e
+                        )
+                        raise RuntimeError(
+                            f"API query failed after {self.retries} retries: {e}"
+                        )
+                    continue  # Proceed to the next retry
 
-                retries -= 1
                 if retries == 0:
                     self.logger.critical(
                         "API query failed after %d retries: %s", self.retries, e

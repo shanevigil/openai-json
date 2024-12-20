@@ -91,6 +91,7 @@ def test_OpenAI_JSON_with_output_assembler(mock_openai_client, expected_messages
         "age": 30,
         "email": "john@example.com",
     }
+    # Match normalized keys for unmatched data
     assert response["unmatched_data"] == {"extra_key": "extra_value"}
 
     mock_client.chat.completions.create.assert_called_once_with(

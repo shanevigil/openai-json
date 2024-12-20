@@ -32,29 +32,58 @@ class OpenAI_JSON:
     def __init__(
         self,
         gpt_api_key: str,
+        schema: str or dict = None,
         model_path: str = None,
         gpt_model: str = "gpt-4",
         gpt_temperature: float = 0,
     ):
         """
-        Initializes the OpenAI_JSON and its components.
+        Initializes the OpenAI_JSON class and its components.
+
+        This method sets up the key components of the JSON processing pipeline,
+        including schema handling, OpenAI API interactions, heuristic processing,
+        machine learning-based transformations, and output assembly.
 
         Args:
-            gpt_api_key (str): OpenAI API key for authenticating requests.
-            model_path (str, optional): Path to the pre-trained machine learning model. Defaults to None.
-            gpt_model (str, optional): OpenAI model to use for queries. Defaults to "gpt-4".
-            gpt_temperature (float, optional): Sampling temperature for the model. Defaults to 0.
+            gpt_api_key (str): The API key to authenticate with the OpenAI API.
+            schema (str or dict, optional): A JSON schema, either as a dictionary
+                or a JSON-formatted string, to validate and process data against.
+                If provided, it will be submitted to the `SchemaHandler.`
+            model_path (str, optional): The path to the pre-trained machine learning model.
+                If provided, the model is loaded for schema-compliant transformations.
+            gpt_model (str, optional): The name of the OpenAI GPT model to use.
+                Defaults to "gpt-4".
+            gpt_temperature (float, optional): The temperature for controlling
+                the randomness of the GPT model's responses. Defaults to 0.
+
+        Attributes:
+            schema_handler (SchemaHandler): Manages schema submission, normalization,
+                and validation. If a `schema` is provided during initialization,
+                it is submitted to this handler. Accepts either a dictionary or
+                a JSON-formatted string.
+            api_interface (APIInterface): Handles interactions with the OpenAI API,
+                including sending queries and receiving responses.
+            heuristic_processor (HeuristicProcessor): Applies heuristic rules to
+                process and align JSON data with the schema.
+            substructure_manager (SubstructureManager): Manages and stores unmatched
+                keys and their associated data for further analysis.
+            output_assembler (OutputAssembler): Combines processed data, unmatched keys,
+                and machine learning transformations into the final output.
+            ml_processor (MachineLearningProcessor): Applies machine learning predictions
+                to align unmatched data with the schema. If `model_path` is not provided,
+                this component is initialized without a model.
         """
+
         self.logger = logging.getLogger(__name__)
         self.logger.info("Initializing OpenAI_JSON with OpenAI API and ML components.")
 
-        self.schema_handler = SchemaHandler()
+        self.schema_handler = SchemaHandler(schema)
         self.api_interface = APIInterface(
             gpt_api_key, model=gpt_model, temperature=gpt_temperature
         )
         self.heuristic_processor = HeuristicProcessor(self.schema_handler)
-        self.substructure_manager = SubstructureManager()
-        self.output_assembler = OutputAssembler()
+        self.substructure_manager = SubstructureManager(self.schema_handler)
+        self.output_assembler = OutputAssembler(self.schema_handler)
         self.ml_processor = MachineLearningProcessor(model_path)
 
         self.logger.info("OpenAI_JSON initialization complete.")

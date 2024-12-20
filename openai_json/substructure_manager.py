@@ -12,47 +12,95 @@ class SubstructureManager:
         unmatched_data (dict): A dictionary containing unmatched keys and their associated data.
     """
 
-    def __init__(self):
+    def __init__(self, schema_handler):
         """
         Initializes the SubstructureManager with an empty unmatched data store.
-        """
-        self.unmatched_data = {}
-        self.logger = logging.getLogger(__name__)
-
-    def store_unmatched_keys(self, unmatched_keys: list, data: dict):
-        """
-        Stores keys and their corresponding data that don't match the schema.
 
         Args:
-            unmatched_keys (list): List of keys not matched by the schema.
-            data (dict): The original response data containing unmatched keys.
+            schema_handler (SchemaHandler): Instance of SchemaHandler for normalization and schema utilities.
         """
-        self.logger.info("Storing unmatched keys: %s", unmatched_keys)
-        for key in unmatched_keys:
-            if key in data:
-                self.unmatched_data[key] = data[key]
+        self.unmatched_keys = {}
+        self.schema_handler = schema_handler
+        self.logger = logging.getLogger(__name__)
+
+    def store_unmatched_keys(self, keys, data):
+        """
+        Stores unmatched keys and their values from the provided data.
+        Args:
+            keys (list): List of unmatched keys, which may include nested keys (e.g., "level1.level2.key2").
+            data (dict): The data to extract values for unmatched keys.
+        """
+        self.logger.info("Storing unmatched keys: %s", keys)
+
+        for key in keys:
+            normalized_key = self.schema_handler.normalize_text(key)
+
+            # Split nested keys and traverse the data
+            key_parts = normalized_key.split(".")
+            value = self._get_nested_value(key_parts, data)
+
+            if value is not None:
+                self.unmatched_keys[normalized_key] = value
                 self.logger.debug(
-                    "Stored unmatched key '%s' with value '%s'.", key, data[key]
+                    "Stored unmatched key '%s' with value '%s'.",
+                    normalized_key,
+                    value,
                 )
             else:
                 self.logger.warning(
                     "Unmatched key '%s' not found in the provided data.", key
                 )
 
-    def retrieve_unmatched_data(self) -> dict:
+    def _get_nested_value(self, key_parts, data):
         """
-        Retrieves all unmatched data stored in the manager.
+        Recursively retrieves the value for a nested key.
+
+        Args:
+            key_parts (list): List of key parts representing the nested path (e.g., ["level1", "level2", "key2"]).
+            data (dict): The data to search.
 
         Returns:
-            dict: A dictionary of unmatched keys and their associated data.
+            The value if the key is found, otherwise None.
         """
-        self.logger.debug("Retrieving unmatched data: %s", self.unmatched_data)
-        return self.unmatched_data
+        if not key_parts or not isinstance(data, dict):
+            return None
 
-    def clear(self):
+        current_key = key_parts[0]
+        if current_key in data:
+            if len(key_parts) == 1:  # Base case: final key part
+                return data[current_key]
+            return self._get_nested_value(key_parts[1:], data[current_key])
+        return None
+
+    def retrieve_unmatched_data(self):
         """
-        Clears all stored unmatched data.
+        Retrieves all stored unmatched data.
+
+        Returns:
+            dict: A dictionary of unmatched keys and their values.
         """
-        self.logger.info("Clearing all unmatched data.")
-        self.unmatched_data.clear()
-        self.logger.debug("Unmatched data cleared successfully.")
+        self.logger.debug("Retrieving unmatched data: %s", self.unmatched_keys)
+        return self.unmatched_keys
+
+    def _find_key_in_data(self, key, data):
+        """
+        Recursively searches for a key in the data.
+
+        Args:
+            key (str): The key to find (assumed normalized).
+            data (dict): The data to search in.
+
+        Returns:
+            The value if the key is found, otherwise None.
+        """
+        if key in data:
+            return data[key]
+
+        # Check nested dictionaries
+        for sub_key, sub_value in data.items():
+            if isinstance(sub_value, dict):
+                result = self._find_key_in_data(key, sub_value)
+                if result is not None:
+                    return result
+
+        return None

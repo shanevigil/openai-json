@@ -103,15 +103,34 @@ class HeuristicProcessor:
                 unmatched_keys.extend(nested_unmatched)
 
             elif expected_type and isinstance(value, expected_type):
-                self.logger.debug(
-                    "Value of key '%s' is of expected type %s", key, expected_type
-                )
-                processed[normalized_key] = value
-                self.logger.debug(
-                    "Matched key '%s' with value '%s' to the schema.",
-                    current_path,
-                    value,
-                )
+                if isinstance(value, str) and expected_type in (int, float):
+                    # Attempt to coerce string to numeric types
+                    try:
+                        coerced_value = expected_type(value)
+                        processed[normalized_key] = coerced_value
+                        self.logger.debug(
+                            "Coerced key '%s' with value '%s' to type %s.",
+                            current_path,
+                            coerced_value,
+                            expected_type,
+                        )
+                    except ValueError:
+                        unmatched_keys.append(normalized_key)
+                        self.logger.debug(
+                            "Failed to coerce key '%s' with value '%s' to type %s.",
+                            current_path,
+                            value,
+                            expected_type,
+                        )
+                else:
+                    self.logger.debug(
+                        "Value of key '%s' is of expected type %s", key, expected_type
+                    )
+                    processed[normalized_key] = value
+                    self.logger.debug(
+                        "Matched key '%s' with value '%s' to the schema.",
+                        current_path,
+                        value,
 
             else:
                 self.logger.debug(

@@ -57,6 +57,10 @@ docs/_build/
 *.html
 *.pdf
 
+# Allow source files
+!docs/**/*.rst
+!docs/**/*.md
+
 # Package dependencies
 *.egg
 *.wheel

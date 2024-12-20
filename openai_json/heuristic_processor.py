@@ -102,9 +102,9 @@ class HeuristicProcessor:
                     processed[normalized_key] = nested_processed
                 unmatched_keys.extend(nested_unmatched)
 
-            elif expected_type and isinstance(value, expected_type):
-                if isinstance(value, str) and expected_type in (int, float):
-                    # Attempt to coerce string to numeric types
+            elif expected_type:
+                # Coerce numeric values if needed
+                if isinstance(value, (float, str)) and expected_type in (int, float):
                     try:
                         coerced_value = expected_type(value)
                         processed[normalized_key] = coerced_value
@@ -115,14 +115,16 @@ class HeuristicProcessor:
                             expected_type,
                         )
                     except ValueError:
-                        unmatched_keys.append(normalized_key)
+                        unmatched_keys.append(
+                            self.schema_handler.get_original_key(normalized_key)
+                        )
                         self.logger.debug(
                             "Failed to coerce key '%s' with value '%s' to type %s.",
                             current_path,
                             value,
                             expected_type,
                         )
-                else:
+                elif isinstance(value, expected_type):
                     self.logger.debug(
                         "Value of key '%s' is of expected type %s", key, expected_type
                     )
@@ -131,14 +133,37 @@ class HeuristicProcessor:
                         "Matched key '%s' with value '%s' to the schema.",
                         current_path,
                         value,
+                    )
+                else:
+                    unmatched_keys.append(
+                        self.schema_handler.get_original_key(normalized_key)
+                    )
+                    self.logger.debug(
+                        "Unmatched key '%s' with value '%s' (type mismatch or not in schema).",
+                        current_path,
+                        value,
+                    )
 
             else:
-                self.logger.debug(
-                    "The '%s' contains unexpected nesting or type mismatch. Value is: %s",
-                    key,
-                    value,
-                )
-                unmatched_keys.append(normalized_key)  # Append just the key name
+                # Handle unexpected nested structures
+                if isinstance(value, dict):
+                    self.logger.debug(
+                        "Unexpected nested key '%s'. Searching for schema-matching keys within.",
+                        key,
+                    )
+                    nested_processed, nested_unmatched = self._process_nested(
+                        value, schema, current_path
+                    )
+                    processed.update(nested_processed)
+                    unmatched_keys.extend(nested_unmatched)
+                else:
+                    unmatched_keys.append(
+                        self.schema_handler.get_original_key(normalized_key)
+                    )
+                    self.logger.warning(
+                        "Undefined expected type for key '%s'. Treating as unmatched.",
+                        current_path,
+                    )
 
         self.logger.debug(
             "Completed processing for path '%s'. Processed: %s, Unmatched: %s",

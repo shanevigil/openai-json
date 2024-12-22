@@ -277,3 +277,111 @@ def test_diff_schema_no_existing_schema():
         ValueError, match="No schema has been submitted yet. Cannot compare schemas."
     ):
         handler.diff_schema(new_schema)
+
+
+def test_extract_prompts():
+    """
+    Unit test for SchemaHandler's extract_prompts method.
+    Ensures prompts are correctly identified and formatted.
+    """
+    handler = SchemaHandler()
+
+    # Submit schema with prompts
+    schema_with_prompts = {
+        "Key A": {"type": "string", "prompt": "Provide the user's full name."},
+        "Key B": {"type": "integer", "prompt": "Provide the user's age."},
+        "Key C": {"type": "boolean"},  # No prompt
+    }
+    handler.submit_schema(schema_with_prompts)
+
+    # Extract prompts
+    prompts = handler.extract_prompts()
+
+    # Expected formatted string
+    expected_prompts = (
+        "Here are the field-specific instructions:\n"
+        "Key A: Provide the user's full name.\n"
+        "Key B: Provide the user's age."
+    )
+
+    assert prompts == expected_prompts, f"Unexpected prompts: {prompts}"
+
+
+def test_extract_prompts_no_prompts():
+    """
+    Test extract_prompts when the schema has no prompts.
+    """
+    handler = SchemaHandler()
+
+    # Submit schema without prompts
+    schema_without_prompts = {
+        "Key A": {"type": "string"},
+        "Key B": {"type": "integer"},
+    }
+    handler.submit_schema(schema_without_prompts)
+
+    # Extract prompts
+    prompts = handler.extract_prompts()
+
+    # Expected result is an empty string
+    assert prompts == "", f"Expected no prompts but got: {prompts}"
+
+
+def test_extract_prompts_with_custom_prefix():
+    """
+    Test extract_prompts with a custom prefix.
+    """
+    handler = SchemaHandler()
+
+    schema_with_prompts = {
+        "Key A": {"type": "string", "prompt": "Provide the user's full name."},
+        "Key B": {"type": "integer", "prompt": "Provide the user's age."},
+    }
+    handler.submit_schema(schema_with_prompts)
+
+    custom_prefix = "Custom instructions for the fields:"
+    prompts = handler.extract_prompts(prefix=custom_prefix)
+
+    expected_prompts = (
+        "Custom instructions for the fields:\n"
+        "Key A: Provide the user's full name.\n"
+        "Key B: Provide the user's age."
+    )
+    assert prompts == expected_prompts, f"Unexpected prompts: {prompts}"
+
+
+def test_extract_prompts_no_prompts_no_prefix():
+    """
+    Test extract_prompts when no prompts exist in the schema.
+    Ensure the prefix is not included in the output.
+    """
+    handler = SchemaHandler()
+
+    schema_without_prompts = {
+        "Key A": {"type": "string"},
+        "Key B": {"type": "integer"},
+    }
+    handler.submit_schema(schema_without_prompts)
+
+    prompts = handler.extract_prompts()
+
+    assert prompts == "", f"Expected no prompts but got: {prompts}"
+
+
+def test_extract_prompts_no_prompts_with_custom_prefix():
+    """
+    Test extract_prompts with no prompts and a custom prefix.
+    Ensure the prefix is not included in the output.
+    """
+    handler = SchemaHandler()
+
+    schema_without_prompts = {
+        "Key A": {"type": "string"},
+        "Key B": {"type": "integer"},
+    }
+    handler.submit_schema(schema_without_prompts)
+
+    custom_prefix = "Custom prefix for testing:"
+    prompts = handler.extract_prompts(prefix=custom_prefix)
+
+    assert prompts == "", f"Expected no prompts but got: {prompts}"

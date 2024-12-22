@@ -20,9 +20,10 @@ OpenAI-JSON is a Python package designed to streamline interactions with OpenAI'
 1. [Installation](#installation)
 2. [Usage](#usage)
 3. [Directory Structure](#directory-structure)
-4. [Development](#development)
-5. [Contributing](#contributing)
-6. [License](#license)
+4. [Validation and Error Handling](#validation-and-error-handling)
+5. [Development](#development)
+6. [Contributing](#contributing)
+7. [License](#license)
 
 ---
 
@@ -60,15 +61,57 @@ pip install -r requirements.txt
 2. **Send a Query**: Use the `OpenAI_JSON` class to send a query to OpenAI's ChatGPT API.
 3. **Receive Structured Output**: The `OpenAI_JSON` processes the response to conform to the schema.
 
-### Example Script
+### Examples
 
-Here's an example script to get started:
+#### Instantiating OpenAI-JSON with a Schema
+
+You can directly provide a schema when instantiating the `OpenAI_JSON` object. This simplifies the initialization process.
 
 ```python
 from openai_json.openai_json import OpenAI_JSON
 
-# Initialize the OpenAI_JSON
-api_key = "your-openai-api-key"
+api_key = "your-api-key"
+schema = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "age": {"type": "integer"},
+        "email": {"type": "string"}
+    },
+    "required": ["name", "email"]
+}
+
+client = OpenAI_JSON(gpt_api_key=api_key, schema=schema)
+response = client.handle_request("Provide information about a user.")
+
+print("Structured Output:", response)
+print("Unmatched Data:", client.unmatched_data)  # Data not aligning with the schema
+print("Errors:", client.errors)  # Coercion failures or unexpected issues
+```
+
+#### Generating Outputs with Prompts
+
+You can add field-specific prompts to your schema using `extract_prompts`. For instance:
+
+```python
+schema_with_prompts = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string", "prompt": "Please provide the user's full name."},
+        "email": {"type": "string", "prompt": "Enter a valid email address."}
+    }
+}
+
+handler = SchemaHandler(schema_with_prompts)
+print(handler.extract_prompts())
+```
+
+#### Handling API Queries
+
+```python
+from openai_json.openai_json import OpenAI_JSON
+
+api_key = "your-api-key"
 schema = {
     "name": {"type": "string"},
     "age": {"type": "integer"},
@@ -76,13 +119,17 @@ schema = {
 }
 
 client = OpenAI_JSON(gpt_api_key=api_key, schema=schema)
+response = client.handle_request("Provide information about a user.")
+print("Structured Output:", response)
+```
 
-# Send a query
-query = "Provide information about a user including their name, age, and email."
-response = client.handle_request(query)
+#### Modifying Default Prefix for Prompts
 
-# Print the structured output
-print(response)
+The default prefix for schema prompts can be customized:
+
+```python
+handler = SchemaHandler(schema_with_prompts)
+print(handler.extract_prompts(prefix="User data collection:")
 ```
 
 ---
@@ -107,7 +154,54 @@ openai_json/
 
 ---
 
+## Validation and Error Handling
+
+The OpenAI-JSON library includes robust mechanisms to handle validation errors, unmatched data, and coercion-related issues. These features ensure that JSON responses conform to the schema while providing detailed insights into mismatches and processing errors.
+
+### Validation Errors
+
+Validation errors occur when the schema or response from ChatGPT fails to comply with valid JSON. These will be logged.
+
+### Unmatched Data and Coercion Errors
+
+When using the `OpenAI_JSON` object, any unmatched data or errors in coercion are automatically stored in the instance attributes `unmatched_data` and `errors`. These represent responses from ChatGPT that are too different from the schema to be managed programmatically. This allows for detailed review and debugging.
+
+Example:
+
+```python
+from openai_json.openai_json import OpenAI_JSON
+
+api_key = "your-api-key"
+schema = {
+    "name": {"type": "string"},
+    "age": {"type": "integer"},
+    "email": {"type": "string"}
+}
+
+client = OpenAI_JSON(gpt_api_key=api_key, schema=schema)
+response = client.handle_request("Provide information about a user.")
+
+print("Structured Output:", response)
+print("Unmatched Data:", client.unmatched_data)  # Data not aligning with the schema
+print("Errors:", client.errors)  # Coercion failures or unexpected issues
+```
+
+---
+
 ## Development
+
+### Training the Machine Learning Model
+
+The `MachineLearningProcessor` supports schema-compliant transformations using a pre-trained model. Currently, the model is not trained. This is the next major step before version 1.0 is officially released. Once trained, the model should be saved in `data/ml_model/` and loaded into the processor as demonstrated in `ml_processor.py`:
+
+```python
+from openai_json.ml_processor import MachineLearningProcessor
+
+processor = MachineLearningProcessor("data/ml_model/model.pkl")
+unmatched_keys = {"unknown_field": "example_value"}
+transformed = processor.predict_transformations(unmatched_keys)
+print("Transformed:", transformed)
+```
 
 ### Running Tests
 
@@ -116,10 +210,6 @@ To ensure everything works as expected, run the test suite using `pytest`:
 ```bash
 pytest tests/
 ```
-
-### Training the ML Model
-
-For handling complex JSON variations, you can train a custom machine learning model. Place the model in the `data/ml_model/` directory. An example training script is provided in `examples/`.
 
 ---
 

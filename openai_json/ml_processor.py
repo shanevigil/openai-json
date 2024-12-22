@@ -54,14 +54,15 @@ class MachineLearningProcessor:
             dict: A dictionary of transformed keys and values compliant with the schema.
         """
         if not self.model:
-            self.logger.warning("No model loaded. Returning unmatched data unchanged.")
-            return unmatched_data
+            self.logger.warning("No model loaded. Exiting Maching Learning Processor.")
+            return []
 
         self.logger.debug(
             "Predicting transformations for unmatched data: %s", unmatched_data
         )
-        transformed_data = {}
+        transformed_data = []
 
+        # TODO Verify this implementation once the model is done.
         for key, value in unmatched_data.items():
             try:
                 feature_vector = self._prepare_features(key, value)

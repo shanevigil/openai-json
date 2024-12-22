@@ -49,7 +49,6 @@ def mock_schema_handler():
         {
             "type": "object",
             "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
-            "required": ["name", "age"],
         }
     )
     return schema_handler

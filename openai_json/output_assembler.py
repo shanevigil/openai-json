@@ -17,29 +17,56 @@ class OutputAssembler:
         self.schema_handler = schema_handler
         self.logger = logging.getLogger(__name__)
 
-    def assemble_output(self, processed_data: dict, unmatched_data: dict) -> dict:
+    def assemble_output(
+        self,
+        processed_data: dict,
+        transformed_data: dict,
+        unmatched_data: list,
+        errors: list,
+    ) -> dict:
         """
-        Combines processed and unmatched data into a final output, mapping keys back to their original forms.
+        Assembles the final output by combining processed, transformed, unmatched data, and errors.
 
         Args:
-            processed_data (dict): Data that matched the schema.
-            unmatched_data (dict): Data that didn't match the schema.
+            processed_data (dict): Data processed by the heuristic processor.
+            transformed_data (dict): Data transformed by the ML processor.
+            unmatched_data (list): List of unmatched data items.
+            errors (list): List of errors encountered during processing.
 
         Returns:
-            dict: The final assembled output.
+            dict: Final output containing processed data, unmatched data, and errors.
         """
         self.logger.info("Assembling final output.")
-        self.logger.debug("Processed data before mapping: %s", processed_data)
-        self.logger.debug("Unmatched data before mapping: %s", unmatched_data)
 
-        # Map keys back to their original forms
-        processed_data = self.schema_handler.map_keys_to_original(processed_data)
-        unmatched_data = self.schema_handler.map_keys_to_original(unmatched_data)
+        if isinstance(transformed_data, list):
+            transformed_data = {k: v for d in transformed_data for k, v in d.items()}
 
-        final_output = {"processed_data": processed_data}
-        if unmatched_data:
-            final_output["unmatched_data"] = unmatched_data
-            self.logger.warning("Unmatched data detected: %s", unmatched_data)
+        # Combine processed and transformed data, with transformed_data taking precedence
+        final_data = {**processed_data, **transformed_data}
 
-        self.logger.info("Final output assembled: %s", final_output)
-        return final_output
+        # Ensure unmatched_data and errors are handled as lists
+        unmatched_data = unmatched_data or []
+        errors = errors or []
+
+        # Map keys to original form using schema handler
+        final_data = self.schema_handler.map_keys_to_original(final_data)
+        unmatched_data = [
+            {self.schema_handler.get_original_key(k): v}
+            for item in unmatched_data
+            for k, v in item.items()
+        ]
+        errors = [
+            {self.schema_handler.get_original_key(k): v}
+            for item in errors
+            for k, v in item.items()
+        ]
+
+        self.logger.debug("Final assembled data: %s", final_data)
+        self.logger.debug("Final unmatched data: %s", unmatched_data)
+        self.logger.debug("Final errors: %s", errors)
+
+        return {
+            "processed_data": final_data,
+            "unmatched_data": unmatched_data,
+            "error": errors,
+        }

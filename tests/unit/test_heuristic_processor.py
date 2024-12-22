@@ -1,6 +1,7 @@
 import pytest
 from openai_json.heuristic_processor import HeuristicProcessor
 from openai_json.schema_handler import SchemaHandler
+import json
 
 
 @pytest.fixture
@@ -14,133 +15,263 @@ def heuristic_processor(schema_handler):
     return HeuristicProcessor(schema_handler)
 
 
-def test_heuristic_processor_valid(heuristic_processor, schema_handler):
-    schema = {
-        "type": "object",
-        "properties": {
+# Parameterized tests with ID specified for easier reference
+test_cases = [
+    {
+        "id": "Simple Test 1: valid response",
+        "schema": {
+            "Key A": {"type": "integer"},
+            "Key B": {"type": "string"},
+            "Key C": {"type": "list"},
+        },
+        "response": '{"Key A": 231, "Key B": "Mary has a dog.", "Key C": ["Max"]}',
+        "expected": {
+            "processed_data": {
+                "key_a": 231,
+                "key_b": "Mary has a dog.",
+                "key_c": ["Max"],
+            },
+            "unmatched_data": [],
+            "error": [],
+        },
+    },
+    {
+        "id": "Simple Test 2: unmatched key response",
+        "schema": {
+            "Key A": {"type": "integer"},
+            "Key B": {"type": "string"},
+        },
+        "response": '{"Key A": 231, "Key B": "Mary has a dog.", "Key C": ["Max"]}',
+        "expected": {
+            "processed_data": {
+                "key_a": 231,
+                "key_b": "Mary has a dog.",
+            },
+            "unmatched_data": [
+                {
+                    "key_c": [
+                        "Max",
+                    ]
+                }
+            ],
+            "error": [],
+        },
+    },
+    {
+        "id": "Simple Test 3: Normalized key processing",
+        "schema": {
+            "Key With Spaces": {"type": "string"},
+            "ALL CAPS": {"type": "string"},
+            "keysWithCamelCase": {"type": "string"},
+            "keys_with_underscore": {"type": "string"},
+        },
+        "response": '{"Key With Spaces": "Some Value", "ALL CAPS": "Some Value", "keysWithCamelCase": "Some Value", "keys_with_underscore": "Some Value"}',
+        "expected": {
+            "processed_data": {
+                "key_with_spaces": "Some Value",
+                "all_caps": "Some Value",
+                "keys_with_camel_case": "Some Value",
+                "keys_with_underscore": "Some Value",
+            },
+            "unmatched_data": [],
+            "error": [],
+        },
+    },
+    {
+        "id": "List Test 1: Valid response with list items",
+        "schema": {
+            "Key A": {"type": "integer"},
+            "Key B": {"type": "string"},
+            "Key C": {"type": "list", "items": {"type": "string"}},
+        },
+        "response": '{"Key A": 231, "Key B": "Mary has three dogs.", "Key C": ["Max","Spot","Rover"]}',
+        "expected": {
+            "processed_data": {
+                "key_a": 231,
+                "key_b": "Mary has three dogs.",
+                "key_c": ["Max", "Spot", "Rover"],
+            },
+            "unmatched_data": [],
+            "error": [],
+        },
+    },
+    {
+        "id": "Coercion Test 1: Coercion of list in string format to list",
+        "schema": {
+            "Key A": {"type": "list"},
+        },
+        "response": '{"Key A": "tag1, tag2, tag3"}',
+        "expected": {
+            "processed_data": {
+                "key_a": ["tag1", "tag2", "tag3"],
+            },
+            "unmatched_data": [],
+            "error": [],
+        },
+    },
+    {
+        "id": "Coercion Test 2: float, int, str, and boolean",
+        "schema": {
+            "Key A": {"type": "integer"},
+            "Key B": {"type": "integer"},
+            "Key C": {"type": "number"},
+            "Key D": {"type": "number"},
+            "Key E": {"type": "string"},
+            "Key F": {"type": "string"},
+            "Key G": {"type": "boolean"},
+            "Key H": {"type": "boolean"},
+            "Key I": {"type": "boolean"},
+            "Key J": {"type": "boolean"},
+        },
+        "response": (
+            '{"Key A": "231", "Key B": 231.3, "Key C": "231.4", "Key D": 231.3, '
+            '"Key E": 42, "Key F": 42.2, "Key G": "true", "Key H": "false", '
+            '"Key I": 1, "Key J": 0}'
+        ),
+        "expected": {
+            "processed_data": {
+                "key_a": 231,
+                "key_b": 231,
+                "key_c": 231.4,
+                "key_d": 231.3,
+                "key_e": "42",
+                "key_f": "42.2",
+                "key_g": True,
+                "key_h": False,
+                "key_i": True,
+                "key_j": False,
+            },
+            "unmatched_data": [],
+            "error": [],
+        },
+    },
+    {
+        "id": "Coercion Test 2: Mixed data within lists",
+        "schema": {
+            "Key A": {"type": "list", "items": {"type": "string"}},
+            "Key B": {"type": "list", "items": {"type": "integer"}},
+            "Key C": {
+                "type": "list",
+            },  # No type specified
+        },
+        "response": '{"Key A": ["two", 2], "Key B": [1, "2", 3, "four"], "Key C": [1, 2, 3, "4", "five"]}',
+        "expected": {
+            "processed_data": {
+                "key_a": ["two", "2"],
+                "key_b": [1, 2, 3],
+                "key_c": [1, 2, 3, 4],
+            },
+            "unmatched_data": [],
+            "error": [{"key_b[3]": "four"}, {"key_c[4]": "five"}],
+        },
+    },
+    {
+        "id": "Coercion Test 3: Invalid string-to-integer generates error",
+        "schema": {
+            "key_a": {"type": "integer"},
+        },
+        "response": '{"key_a": "abc"}',
+        "expected": {
+            "processed_data": {},
+            "unmatched_data": [],
+            "error": [{"key_a": "abc"}],
+        },
+    },
+    {
+        "id": "Nesting Test 1: Nested data in list",
+        "schema": {
+            "Key A": {"type": "integer"},
+            "Key B": {"type": "string"},
+            "Key C": {"type": "list", "items": {"type": "string"}},
+        },
+        "response": '{"Key A": 231, "Key B": "Mary has some dogs.", "Dogs": {"Key C": ["Max", "Rover", 3]}}',
+        "expected": {
+            "processed_data": {
+                "key_a": 231,
+                "key_b": "Mary has some dogs.",
+                "key_c": ["Max", "Rover", "3"],
+            },
+            "unmatched_data": [],  # Dogs parent is erased as the child key was found
+            "error": [],
+        },
+    },
+    {
+        "id": "Nesting Test 2: Complex nested object schema",
+        "schema": {
             "name": {"type": "string"},
             "age": {"type": "integer"},
             "email": {"type": "string"},
         },
-    }
-    schema_handler.submit_schema(schema)
-
-    data = {"name": "John", "age": 30, "email": "john@example.com"}
-    processed, unmatched = heuristic_processor.process(data)
-
-    assert processed == data
-    assert unmatched == []
-
-
-def test_heuristic_processor_unmatched_keys(heuristic_processor, schema_handler):
-    schema = {
-        "type": "object",
-        "properties": {
-            "name": {"type": "string"},
-            "age": {"type": "integer"},
-        },
-        "required": ["name", "age"],
-    }
-    schema_handler.submit_schema(schema)
-
-    data = {"name": "John Doe", "age": "thirty"}  # Invalid type for age
-    processed, unmatched = heuristic_processor.process(data)
-
-    assert processed == {"name": "John Doe"}
-    assert unmatched == ["age"]
-
-
-def test_heuristic_processor_nested_schema(heuristic_processor, schema_handler):
-    schema = {
-        "type": "object",
-        "properties": {
-            "user": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "details": {
-                        "type": "object",
-                        "properties": {
-                            "age": {"type": "integer"},
-                            "email": {"type": "string"},
-                        },
-                        "required": ["age"],
-                    },
-                },
-                "required": ["name", "details"],
+        "response": '{"nested": {'
+        '    "person": {'
+        '        "name": "Johnathan",'
+        '        "properties": {'
+        '            "alias": "Johnny",'
+        '            "details": {'
+        '                "age": 30,'
+        '                "contact info": {'
+        '                    "phone": "888-888-8888",'
+        '                    "email": "john@example.com"'
+        "                }"
+        "            }"
+        "        }"
+        "    }"
+        "}}",
+        "expected": {
+            "processed_data": {
+                "name": "Johnathan",
+                "age": 30,
+                "email": "john@example.com",
             },
+            "unmatched_data": [
+                {"nested.person.properties.alias": "Johnny"},
+                {"nested.person.properties.details.contact_info.phone": "888-888-8888"},
+            ],
+            "error": [],
         },
-    }
+    },
+    # TODO: Implement functionality that will cause this test to pass
+    # {
+    #     "id": "Nesting Test 3: Handles multiple entities despite single-schema field",
+    #     "schema": {"name": {"type": "string"}},
+    #     "response": '{"people": [{"person": {"name": "Alice"}}, {"person": {"name": "Bob"}}]}',
+    #     "expected": {
+    #         "processed_data": [{"name": "Alice"}, {"name": "Bob"}],
+    #         "unmatched_data": [],
+    #         "error": [],
+    #     },
+    # },
+]
+
+
+# Dynamically parameterize tests
+@pytest.mark.parametrize(
+    "schema, chatgpt_response, expected_output",
+    [(case["schema"], case["response"], case["expected"]) for case in test_cases],
+    ids=[case["id"] for case in test_cases],
+)
+def test_heuristic_processor_integration(
+    schema_handler, heuristic_processor, schema, chatgpt_response, expected_output
+):
+    """
+    Integration test for HeuristicProcessor with various schemas and ChatGPT responses.
+    """
+    # Mock schema validation (if required)
     schema_handler.submit_schema(schema)
 
-    data = {
-        "user": {
-            "name": "John Doe",
-            "details": {"age": 30, "email": "john@example.com"},
-        }
-    }
-    processed, unmatched = heuristic_processor.process(data)
+    # Convert the mocked ChatGPT response to a Python dictionary
+    parsed_response = json.loads(chatgpt_response)
 
-    expected_processed = {
-        "user": {
-            "name": "John Doe",
-            "details": {"age": 30, "email": "john@example.com"},
-        }
-    }
-    assert processed == expected_processed
-    assert unmatched == []
+    # Process the parsed response using HeuristicProcessor
+    processed_data, unmatched_keys, errors = heuristic_processor.process(
+        parsed_response
+    )
 
+    # Assert the processed data matches the expected output
+    assert processed_data == expected_output["processed_data"]
 
-def test_heuristic_processor_list_handling():
-    schema = {
-        "type": "object",
-        "properties": {
-            "items": {
-                "type": "array",
-                "items": {"type": "string"},
-            },
-        },
-    }
-    data = {"items": ["item1", 42, "item3"]}  # 42 does not match the "string" type
-    heuristic_processor = HeuristicProcessor(schema_handler=SchemaHandler())
-    heuristic_processor.schema_handler.submit_schema(schema)
+    # Assert unmatched_keys matches expected unmatched_data
+    assert unmatched_keys == expected_output["unmatched_data"]
 
-    processed, unmatched = heuristic_processor.process(data)
-    assert processed == {"items": ["item1", "item3"]}
-    assert unmatched == [{"items[1]": [42]}]
-
-
-def test_heuristic_processor_string_to_list(heuristic_processor, schema_handler):
-    schema = {
-        "type": "object",
-        "properties": {
-            "tags": {
-                "type": "array",
-                "items": {"type": "string"},
-            },
-        },
-    }
-    schema_handler.submit_schema(schema)
-
-    data = {"tags": "tag1, tag2, tag3"}
-    processed, unmatched = heuristic_processor.process(data)
-
-    assert processed == {"tags": ["tag1", "tag2", "tag3"]}
-    assert unmatched == []
-
-
-def test_heuristic_processor_normalized_keys(heuristic_processor, schema_handler):
-    schema = {
-        "type": "object",
-        "properties": {
-            "Key_A": {"type": "string"},
-            "Key_B": {"type": "integer"},
-        },
-    }
-    schema_handler.submit_schema(schema)
-
-    data = {"key a": "value1", "KEY B": 100}
-    processed, unmatched = heuristic_processor.process(data)
-
-    assert processed == {"key_a": "value1", "key_b": 100}
-    assert unmatched == []
+    # Assert errors matches expected error
+    assert errors == expected_output["error"]

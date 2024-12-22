@@ -83,6 +83,49 @@ class SchemaHandler:
         # Normalize schema for Python-specific processing
         self.normalized_schema = self._normalize_schema(schema)
 
+    def extract_prompts(
+        self, prefix: str = "Here are the field-specific instructions:"
+    ) -> str:
+        """
+        Extracts prompts from the schema and formats them into a string,
+        returning keys in their original format with an optional prefix.
+
+        Args:
+            prefix (str): A default prefix to prepend to the extracted prompts.
+
+        Returns:
+            str: A formatted string of field prompts, prefixed by the provided string.
+        """
+        if not self.normalized_schema:
+            self.logger.debug("No normalized schema available.")
+            return ""
+
+        self.logger.debug(
+            "Starting prompt extraction. Normalized schema: %s", self.normalized_schema
+        )
+
+        prompts = []
+        for normalized_key, definition in self.normalized_schema.items():
+            # Check if this is a field definition
+            if isinstance(definition, dict) and "prompt" in definition:
+                original_key = self.get_original_key(
+                    normalized_key
+                )  # Map normalized to original key
+                self.logger.debug(
+                    "Mapped normalized key '%s' to original key '%s'",
+                    normalized_key,
+                    original_key,
+                )
+                prompts.append(f"{original_key}: {definition['prompt']}")
+            else:
+                self.logger.debug("No prompt found for key '%s'", normalized_key)
+
+        if prompts:
+            prompts.insert(0, prefix)  # Add the prefix at the beginning of the prompts
+
+        self.logger.debug("Extracted prompts with prefix: %s", prompts)
+        return "\n".join(prompts)
+
     def validate_data(self, data: dict) -> tuple:
         """
         Validates the given data against the current schema.
@@ -113,7 +156,9 @@ class SchemaHandler:
             return True, reconstructed_data
         except ValidationError as e:
             self.logger.warning("Data validation failed. Error: %s", e.message)
-            return False, f"Validation failed: {e.message}"
+            # Map normalized error path back to the original key
+            error_path = ".".join(self.key_mapping.get(part, part) for part in e.path)
+            return False, f"Validation failed: {error_path}: {e.message}"
         except Exception as e:
             self.logger.error("Unexpected error during validation: %s", str(e))
             return False, f"Unexpected validation error: {str(e)}"
@@ -145,19 +190,19 @@ class SchemaHandler:
         if isinstance(field, dict) and "type" in field:
             json_type = field["type"]
 
-            # Handle nested type
+            # Handle invalid nested type
             if isinstance(json_type, dict):
                 self.logger.error("Nested 'type' field detected: %s", json_type)
                 raise ValueError(f"Invalid nested 'type': {json_type}")
 
-            # Map "array" to list
-            if json_type == "array":
-                return list
+            # Map JSON type to Python type using reverse mapping
+            return self.python_type_reverse_mapping.get(json_type)
 
-            # Handle other types
-            return {v: k for k, v in self.python_type_mapping.items()}.get(json_type)
         elif isinstance(field, str):
-            return {v: k for k, v in self.python_type_mapping.items()}.get(field)
+            # Handle shorthand type strings
+            return self.python_type_reverse_mapping.get(field)
+
+        # Field type is undefined
         return None
 
     def register_type(self, python_type: type, json_type: str):

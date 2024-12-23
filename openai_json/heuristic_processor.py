@@ -1,5 +1,6 @@
 import logging
 from openai_json.schema_handler import SchemaHandler
+from word2number import w2n
 
 
 class HeuristicProcessor:
@@ -369,38 +370,62 @@ class HeuristicProcessor:
                     coerced_item,
                 )
                 return coerced_item
-            elif expected_type == "number":
-                if isinstance(item, (int, float)):
-                    coerced_item = item  # Preserve int or float as-is
-                elif isinstance(item, str):
-                    coerced_item = float(item) if "." in item else int(item)
+            elif expected_type in ["number", float, int]:
                 self.logger.debug(
-                    "Coercion - item: %s, expected type: %s, coerced to: %s",
-                    item,
-                    expected_type,
-                    coerced_item,
-                )
-                return coerced_item
-            elif expected_type == float:
-                coerced_item = float(item)
-                self.logger.debug(
-                    "Coercion - item: %s, expected type: %s, coerced to: %s",
-                    item,
-                    expected_type,
-                    coerced_item,
-                )
-                return coerced_item
-            elif expected_type == int:
-                coerced_item = (
-                    int(round(item)) if isinstance(item, float) else int(item)
-                )
-                self.logger.debug(
-                    "Coercion - item: %s, expected type: %s, coerced to: %s",
-                    item,
-                    expected_type,
-                    coerced_item,
-                )
-                return coerced_item
+                            "Running coercion on: '%s' expected type: %s",
+                            item,
+                            expected_type,
+                        ) # TODO: Delete after debugging
+                if isinstance(item, str):
+                      
+                    # Try standard numeric conversion
+                    try:
+                        coerced_item = float(item) if "." in item else int(item)
+                        self.logger.debug(
+                            "Standard conversion succeeded for '%s': %s",
+                            item,
+                            coerced_item,
+                        )
+                        return coerced_item
+                    except ValueError:
+                        self.logger.debug(
+                            "Standard conversion failed for '%s'. Attempting word2number.",
+                            item,
+                        )
+
+                    # Try text-to-number conversion
+                    try:
+                        coerced_item = w2n.word_to_num(item)
+                        self.logger.debug(
+                            "word2number conversion succeeded for '%s': %s",
+                            item,
+                            coerced_item,
+                        )
+                        return float(coerced_item) if expected_type == float else int(coerced_item)
+                    except ValueError:
+                        self.logger.warning(
+                            "word2number conversion failed for '%s'. Returning original value.",
+                            item,
+                        )
+                        return item
+
+                if expected_type == float:
+                    # Convert explicitly to float
+                    coerced_item = float(item)
+                    self.logger.debug(
+                        "Coerced item '%s' to float: %s", item, coerced_item
+                    )
+                    return coerced_item
+
+                if expected_type == int:
+                    # Convert explicitly to int
+                    coerced_item = (
+                        int(round(item)) if isinstance(item, float) else int(item)
+                    )
+                    self.logger.debug(
+                        "Coerced item '%s' to int: %s", item, coerced_item
+                    )
+                    return coerced_item
             elif isinstance(item, expected_type):
                 self.logger.debug(
                     "Coercion for item: %s unnecessary. Item is expected type %s",

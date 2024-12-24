@@ -1,6 +1,9 @@
 import logging
-import joblib
-from sklearn.ensemble import RandomForestClassifier  # Example model
+from rapidfuzz import process
+from rapidfuzz.fuzz import ratio
+from transformers import AutoTokenizer, AutoModel
+import torch
+from openai_json.schema_handler import SchemaHandler
 
 
 class MachineLearningProcessor:
@@ -11,107 +14,318 @@ class MachineLearningProcessor:
     and values using a pre-trained machine learning model.
     """
 
-    def __init__(self, model_path: str = None):
+    def __init__(self, schema_handler: SchemaHandler):
         """
-        Initializes the processor and optionally loads a pre-trained model.
+        Initializes the HeuristicProcessor with a schema handler.
 
         Args:
-            model_path (str, optional): Path to the trained model file. If None, no model is loaded.
+            schema_handler (SchemaHandler): An instance of SchemaHandler.
         """
+        self.schema_handler = schema_handler
+
         self.logger = logging.getLogger(__name__)
-        self.model = None
-        if model_path:
-            self.load_model(model_path)
+        self.logger = logging.getLogger(__name__)
+        self.tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        self.model = AutoModel.from_pretrained("bert-base-uncased")
+        self.misspelling_threshold = 75  # Similarity threshold for misspellings
+        self.synonym_threshold = 0.75  # Similarity threshold for contextual matching
+        self.contextual_threshold = 0.8  # Similarity threshold for contextual matching
 
-    def load_model(self, model_path: str):
+    def process(self, unmatched_data: dict) -> tuple:
         """
-        Loads the machine learning model from a file.
+        Processes the given data to align it with the schema.
 
         Args:
-            model_path (str): Path to the trained model file.
+            unmatched_data (dict): The JSON response data.
 
-        Raises:
-            ValueError: If the model file cannot be loaded.
+        Returns:
+            tuple: A tuple of (processed_data, unmatched_keys, errors).
         """
-        self.logger.info("Attempting to load model from path: %s", model_path)
-        try:
-            self.model = joblib.load(model_path)
-            self.logger.info("Model loaded successfully from %s.", model_path)
-        except Exception as e:
-            self.logger.error("Failed to load model from %s: %s", model_path, e)
-            raise ValueError(f"Failed to load model from {model_path}: {e}")
+        self.logger.info("Starting ML processing pipeline.")
+        self.logger.debug("Initial unmatched data: %s", unmatched_data)
 
-    def predict_transformations(self, unmatched_data: dict) -> dict:
+        schema = self.schema_handler.normalized_schema
+        if not schema:
+            self.logger.error("No schema provided in SchemaHandler.")
+            raise ValueError("No schema provided for processing.")
+
+        processed_data = {}
+        unmatched_keys = []
+        errors = []
+
+        for key, value in unmatched_data.items():
+            try:
+                transformed_item = self._process_item({key: value}, schema)
+                processed_data.update(transformed_item)
+            except Exception as e:
+                self.logger.error("Error processing key '%s': %s", key, e)
+                unmatched_keys.append(key)
+                errors.append({key: str(e)})
+
+        self.logger.info("Processing pipeline completed.")
+        self.logger.debug("Processed data: %s", processed_data)
+        self.logger.debug("Unmatched keys: %s", unmatched_keys)
+        self.logger.debug("Errors: %s", errors)
+
+        return processed_data, unmatched_keys, errors
+
+    def _process_item(self, unmatched_data_item: dict, schema: dict) -> dict:
+        self.logger.info("Processing individual item.")
+        self.logger.debug("Initial unmatched data for item: %s", unmatched_data_item)
+
+        # Extract schema field names
+        schema_field_names = list(schema.keys())
+
+        # Step 1: Perform fuzzy matching
+        self.logger.info("Step 1: Performing fuzzy matching...")
+        fuzzy_matched = self._predict_misspellings(
+            unmatched_data_item, schema_field_names
+        )
+        self.logger.debug("Fuzzy matching result: %s", fuzzy_matched)
+        if fuzzy_matched:
+            self.logger.debug("Returning transformed data from fuzzy matched step")
+            return fuzzy_matched
+
+        # Step 2: Handle synonyms using BERT
+        self.logger.info("Step 2: Handling synonyms using BERT...")
+        synonym_matched = self._predict_synonyms(
+            unmatched_data_item, schema_field_names
+        )
+        synonym_matched = {
+            key: value
+            for key, value in synonym_matched.items()
+            if key in schema_field_names
+        }
+        self.logger.debug("Synonym matching result: %s", synonym_matched)
+        if synonym_matched:
+            self.logger.debug("Returning transformed data from synonym matched step")
+            return synonym_matched
+
+        # Step 3: Perform contextual key matching if schema is rich
+        # TODO Implement contextual matching
+        # if self._is_rich_schema(schema):
+        #     self.logger.info("Step 3: Performing contextual key matching...")
+        #     contextual_matched = self._predict_contextual_matching(
+        #         unmatched_data_item, schema
+        #     )
+        #     contextual_matched = {
+        #         key: value
+        #         for key, value in contextual_matched.items()
+        #         if key in schema_field_names
+        #     }
+        #     self.logger.debug("Contextual matching result: %s", contextual_matched)
+        #     if contextual_matched:
+        #         self.logger.debug(
+        #             "Returning transformed data from synonym matched step"
+        #         )
+        #         return contextual_matched
+        # else:
+        #     self.logger.warning(
+        #         "Contextual predictor bypassed due to low context schema."
+        #     )
+
+        self.logger.info(
+            "Item processing completed. No matches found for unmatched data: %s",
+            unmatched_data_item,
+        )
+        return {}
+
+    def _predict_misspellings(self, unmatched_data: dict, schema_keys: list) -> dict:
         """
-        Predicts schema-compliant transformations for unmatched keys and values.
-
-        If no model is loaded, the unmatched data is returned unchanged.
+        Predicts schema-compliant unmatched keys and values due to misspellings
 
         Args:
             unmatched_data (dict): A dictionary of keys and values that do not match the schema.
+            schema_keys (list): A list of valid schema keys to match against.
 
         Returns:
             dict: A dictionary of transformed keys and values compliant with the schema.
         """
-        if not self.model:
-            self.logger.warning("No model loaded. Exiting Maching Learning Processor.")
-            return []
+        if not unmatched_data:
+            return {}
 
-        self.logger.debug(
-            "Predicting transformations for unmatched data: %s", unmatched_data
-        )
-        transformed_data = []
+        transformed_data = {}
 
-        # TODO Verify this implementation once the model is done.
         for key, value in unmatched_data.items():
-            try:
-                feature_vector = self._prepare_features(key, value)
+            # Compare against all schema keys and find the best match
+            best_match = None
+            best_score = 0
+
+            for schema_key in schema_keys:
+                score = ratio(key, schema_key)
                 self.logger.debug(
-                    "Generated feature vector for key '%s': %s", key, feature_vector
+                    "Fuzzy matching score between '%s' and '%s': %.2f",
+                    key,
+                    schema_key,
+                    score,
                 )
+                if score > best_score:
+                    best_match = schema_key
+                    best_score = score
 
-                transformed_value = self.model.predict([feature_vector])[0]
-                transformed_data[key] = transformed_value
-
+            if best_match and best_score > self.misspelling_threshold:
                 self.logger.debug(
-                    "Predicted transformation for key '%s': original value '%s', transformed value '%s'.",
+                    "Fuzzy match found for '%s': '%s' with score %.2f, which is > the set threshold of: %s",
                     key,
-                    value,
-                    transformed_value,
+                    best_match,
+                    best_score,
+                    self.misspelling_threshold,
                 )
-            except Exception as e:
-                transformed_data[key] = f"Error processing {key}: {e}"
-                self.logger.error(
-                    "Error predicting transformation for key '%s' with value '%s': %s",
-                    key,
-                    value,
-                    e,
+                transformed_data[best_match] = value
+            else:
+                self.logger.warning(
+                    "No suitable fuzzy match found for '%s'. Leaving as unmatched.", key
                 )
 
-        self.logger.info("Transformation predictions completed: %s", transformed_data)
         return transformed_data
 
-    def _prepare_features(self, key: str, value) -> list:
+    def _predict_synonyms(self, unmatched_data: dict, schema_keys: list) -> dict:
         """
-        Converts a key-value pair into a feature vector suitable for the model.
-
-        This method is used to extract features from unmatched data for prediction.
-        The feature extraction logic can be customized based on the use case.
+        Maps synonymous keys to schema keys using BERT embeddings.
 
         Args:
-            key (str): The unmatched key.
-            value: The value associated with the unmatched key.
+            unmatched_data (dict): Keys and values that do not match the schema.
+            schema_keys (list): Valid schema keys for matching.
 
         Returns:
-            list: A feature vector representing the key and value.
+            dict: Transformed data with synonyms mapped to schema keys.
         """
-        self.logger.debug("Preparing features for key '%s' and value '%s'.", key, value)
-        # Example feature extraction (customize this as needed)
-        feature_vector = [
-            len(key),  # Length of the key
-            len(str(value)),  # Length of the string representation of the value
-            isinstance(value, (int, float)),  # Boolean: is the value numeric?
-            isinstance(value, str),  # Boolean: is the value a string?
-        ]
-        self.logger.debug("Feature vector for key '%s': %s", key, feature_vector)
-        return feature_vector
+        if not unmatched_data:
+            return {}
+
+        transformed_data = {}
+
+        for key, value in unmatched_data.items():
+            key_embedding = self._get_embedding_synonyms(key)
+            best_match = None
+            best_similarity = 0
+
+            for schema_key in schema_keys:
+                schema_embedding = self._get_embedding_synonyms(schema_key)
+                similarity = self._cosine_similarity(
+                    key_embedding, schema_embedding, schema_key
+                )
+                self.logger.debug(
+                    "Synonym similarity between '%s' and '%s': %.2f",
+                    key,
+                    schema_key,
+                    similarity,
+                )
+
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_match = schema_key
+
+            if best_match and best_similarity > self.synonym_threshold:
+                self.logger.debug(
+                    "Synonym match found for '%s': '%s' with similarity %.2f",
+                    key,
+                    best_match,
+                    best_similarity,
+                )
+                transformed_data[best_match] = value
+            else:
+                self.logger.warning(
+                    "No suitable synonym match found for '%s'. Excluding from transformed data.",
+                    key,
+                )
+
+        return transformed_data
+
+    def _predict_contextual_matching(self, unmatched_data: dict, schema: dict) -> dict:
+        """
+        Matches unmatched keys to schema keys based solely on key similarity.
+
+        Args:
+            unmatched_data (dict): Unmatched keys and values.
+            schema (dict): Schema dictionary with keys and their details.
+
+        Returns:
+            dict: Transformed data with matched keys.
+        """
+        if not unmatched_data:
+            return {}
+
+        transformed_data = {}
+
+        for unmatched_key, value in unmatched_data.items():
+            # Generate embedding for the unmatched key
+            unmatched_embedding = self._get_embedding_contextual(unmatched_key)
+
+            best_match = None
+            best_similarity = 0
+
+            for schema_key in schema.keys():
+                # Generate embedding for the schema key
+                schema_embedding = self._get_embedding_contextual(schema_key)
+
+                # Compute cosine similarity
+                similarity = self._cosine_similarity(
+                    unmatched_embedding, schema_embedding, schema_key
+                )
+                self.logger.debug(
+                    "Similarity between unmatched key '%s' and schema key '%s': %.2f",
+                    unmatched_key,
+                    schema_key,
+                    similarity,
+                )
+
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_match = schema_key
+
+            # Add to transformed data if similarity exceeds threshold
+            if best_match and best_similarity > self.contextual_threshold:
+                self.logger.debug(
+                    "Key match found for '%s': '%s' with similarity %.2f",
+                    unmatched_key,
+                    best_match,
+                    best_similarity,
+                )
+                transformed_data[best_match] = value
+            else:
+                self.logger.warning(
+                    "No strong key match found for '%s'. Excluding from transformed data.",
+                    unmatched_key,
+                )
+
+        return transformed_data
+
+    def _get_embedding_synonyms(self, text: str):
+        inputs = self.tokenizer(text, return_tensors="pt")
+        outputs = self.model(**inputs)
+        # self.logger.debug("Embedding for 'inputs': %s", inputs)
+        # self.logger.debug("Embedding for 'outputs': %s", outputs)
+        return outputs.last_hidden_state.mean(dim=1)  # Mean pooling of embeddings
+
+    def _get_embedding_contextual(self, text: str) -> torch.Tensor:
+        inputs = self.tokenizer(text, return_tensors="pt")
+        outputs = self.model(**inputs)
+        # self.logger.debug("Embedding for 'inputs': %s", inputs)
+        # self.logger.debug("Embedding for 'outputs': %s", outputs)
+        return outputs.last_hidden_state.mean(dim=1)  # Mean pooling
+
+    def _cosine_similarity(
+        self, vec1: torch.Tensor, vec2: torch.Tensor, context: str
+    ) -> float:
+        similarity = torch.nn.functional.cosine_similarity(vec1, vec2).item()
+        self.logger.debug(
+            "Cosine similarity [%s] between vectors: %.2f", context, similarity
+        )
+        return similarity
+
+    def _is_rich_schema(self, schema):
+        if len(schema) > 3:
+            for key, value in schema.items():
+                if all(
+                    k in value for k in ["prompt", "type"]
+                ):  # Check fields in the value
+                    return True
+            self.logger.info(
+                "The schema doesn't have types and prompts, making it too sparse for proper contextual matching"
+            )
+        else:
+            self.logger.info(
+                "The schema has less than three fields, making it too small for proper contextual matching"
+            )
+        return False

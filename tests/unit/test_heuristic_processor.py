@@ -1,13 +1,6 @@
 import pytest
 from openai_json.heuristic_processor import HeuristicProcessor
-from openai_json.schema_handler import SchemaHandler
 import json
-
-
-@pytest.fixture
-def schema_handler():
-    handler = SchemaHandler()
-    return handler
 
 
 @pytest.fixture
@@ -275,7 +268,16 @@ test_cases = [
         },
         "response": '{"Key A": ["42", "forty-two", "not a number"], "Key B": [42, "Forty Two"]}',
         "expected": {
-            "processed_data": {"key_a": [42, 42,],"key_b": [42.0, 42.0,]},
+            "processed_data": {
+                "key_a": [
+                    42,
+                    42,
+                ],
+                "key_b": [
+                    42.0,
+                    42.0,
+                ],
+            },
             "unmatched_data": [],
             "error": [{"key_a[2]": "not a number"}],
         },

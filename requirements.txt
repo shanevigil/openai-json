@@ -1,9 +1,22 @@
-flake8==7.1.1               # For linting
-joblib==1.4.2               # For model serialization
+# Core dependencies
 jsonschema==4.23.0          # For schema validation
 openai==1.58.1              # For OpenAI API interactions
-pytest==8.3.4               # For testing
+word2number==1.1            # For converting numbers in word format
+rapidfuzz==3.11.0           # For fuzzy string matching
+requests==2.32.3            # For HTTP requests (dependency of openai)
+
+# Machine learning
+joblib==1.4.2               # For model serialization
 scikit-learn==1.6.0         # For machine learning models
+numpy==2.0.2                # For numerical computations
+torch==2.0.1                # Required for transformers and deep learning
+transformers==4.47.1        # For BERT-based NLP models
+safetensors==0.4.5          # Lightweight tensor serialization (transformers dependency)
+
+# Development and Testing
+flake8==7.1.1               # For linting
+pytest==8.3.4               # For testing
+
+# Documentation
 Sphinx==7.4.7               # For documentation
 sphinx-rtd-theme==3.0.2     # For documentation theme
-word2number==1.1            # to convert numbers in word format

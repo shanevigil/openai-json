@@ -24,12 +24,21 @@ jobs:
       with:
         python-version: 3.9
 
-    # Install dependencies
-    - name: Install dependencies
+    # Install dependencies for CPU
+    - name: Install dependencies (CPU-only)
+      if: github.event_name == 'push'
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install build
         pip install -r requirements.txt
+
+    # Install dependencies for GPU (only on pull requests)
+    - name: Install dependencies (with GPU support)
+      if: github.event_name == 'pull_request'
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install build
+        pip install ".[gpu]"
 
     # Test building the package
     - name: Build the package

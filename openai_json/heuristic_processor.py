@@ -372,12 +372,12 @@ class HeuristicProcessor:
                 return coerced_item
             elif expected_type in ["number", float, int]:
                 self.logger.debug(
-                            "Running coercion on: '%s' expected type: %s",
-                            item,
-                            expected_type,
-                        ) # TODO: Delete after debugging
+                    "Running coercion on: '%s' expected type: %s",
+                    item,
+                    expected_type,
+                )  # TODO: Delete after debugging
                 if isinstance(item, str):
-                      
+
                     # Try standard numeric conversion
                     try:
                         coerced_item = float(item) if "." in item else int(item)
@@ -401,7 +401,11 @@ class HeuristicProcessor:
                             item,
                             coerced_item,
                         )
-                        return float(coerced_item) if expected_type == float else int(coerced_item)
+                        return (
+                            float(coerced_item)
+                            if expected_type == float
+                            else int(coerced_item)
+                        )
                     except ValueError:
                         self.logger.warning(
                             "word2number conversion failed for '%s'. Returning original value.",

@@ -18,10 +18,16 @@ setup(
         "joblib",
         "scikit-learn",
         "jsonschema",
+        "transformers",
+        "torch==2.0.1+cpu ; platform_system=='Windows' or platform_system=='Darwin'",
+        "torch==2.0.1 ; platform_system=='Linux'",  # CUDA version handled by PyTorch installer
     ],
     extras_require={
         "testing": ["pytest", "pytest-cov"],
         "linting": ["flake8", "mypy"],
+        "gpu": [
+            "torch==2.0.1+cu117 ; platform_system=='Linux'"
+        ],  # Optional CUDA support
     },
     classifiers=[
         "Programming Language :: Python :: 3",

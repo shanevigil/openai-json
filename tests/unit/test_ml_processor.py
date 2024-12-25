@@ -110,33 +110,6 @@ def test_predict_contextual_matching():
 #     assert output == expected_output
 
 
-# def test_predict_contextual_matching_reduced_threshold(schema_handler):
-#     processor = MachineLearningProcessor(schema_handler)
-#     processor.contextual_threshold = 0.65  # Explicitly test with a lower threshold
-
-#     unmatched_data = {
-#         "acct_id": "67890",
-#     }
-
-#     schema = {
-#         "user_id": {
-#             "type": "integer",
-#             "prompt": "Unique identifier for a user, e.g., 12345",
-#         },
-#         "account_id": {
-#             "type": "integer",
-#             "prompt": "Another unique identifier for the user",
-#         },
-#     }
-
-#     expected_output = {
-#         "user_id": "67890",  # Matches "user_id" due to reduced threshold
-#     }
-
-#     output = processor._predict_contextual_matching(unmatched_data, schema)
-#     assert output == expected_output
-
-
 def test_process_item_method(schema_handler):
 
     schema = {
@@ -164,7 +137,7 @@ def test_process_item_method(schema_handler):
 
     unmatched_data = {
         "emial": "test@example.com",
-        "person_name": "John Doe",
+        "person name": "John Doe",
         "biography": "John is a person of unknown origins.",
     }
 

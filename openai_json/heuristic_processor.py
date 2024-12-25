@@ -1,5 +1,6 @@
 import logging
 from openai_json.schema_handler import SchemaHandler
+from openai_json.data_manager import ResultData
 from word2number import w2n
 
 
@@ -43,7 +44,7 @@ class HeuristicProcessor:
 
         processed, unmatched_keys, errors = self._process_nested(data, schema)
 
-        return processed, unmatched_keys, errors
+        return ResultData(matched=processed, unmatched=unmatched_keys, errors=errors)
 
     def _process_nested(self, data: dict, schema: dict, path: str = "") -> tuple:
         """

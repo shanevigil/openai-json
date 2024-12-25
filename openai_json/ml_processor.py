@@ -4,6 +4,7 @@ from rapidfuzz.fuzz import ratio
 from transformers import AutoTokenizer, AutoModel
 import torch
 from openai_json.schema_handler import SchemaHandler
+from openai_json.data_manager import ResultData
 
 
 class MachineLearningProcessor:
@@ -59,15 +60,16 @@ class MachineLearningProcessor:
                 processed_data.update(transformed_item)
             except Exception as e:
                 self.logger.error("Error processing key '%s': %s", key, e)
-                unmatched_keys.append(key)
-                errors.append({key: str(e)})
+                errors.append({key: value})
 
         self.logger.info("Processing pipeline completed.")
         self.logger.debug("Processed data: %s", processed_data)
         self.logger.debug("Unmatched keys: %s", unmatched_keys)
         self.logger.debug("Errors: %s", errors)
 
-        return processed_data, unmatched_keys, errors
+        return ResultData(
+            matched=processed_data, unmatched=unmatched_keys, errors=errors
+        )
 
     def _process_item(self, unmatched_data_item: dict, schema: dict) -> dict:
         self.logger.info("Processing individual item.")
@@ -196,21 +198,12 @@ class MachineLearningProcessor:
         transformed_data = {}
 
         for key, value in unmatched_data.items():
-            key_embedding = self._get_embedding_synonyms(key)
             best_match = None
             best_similarity = 0
 
             for schema_key in schema_keys:
-                schema_embedding = self._get_embedding_synonyms(schema_key)
-                similarity = self._cosine_similarity(
-                    key_embedding, schema_embedding, schema_key
-                )
-                self.logger.debug(
-                    "Synonym similarity between '%s' and '%s': %.2f",
-                    key,
-                    schema_key,
-                    similarity,
-                )
+
+                similarity = self._get_bert_similarity(key, schema_key, False)
 
                 if similarity > best_similarity:
                     best_similarity = similarity
@@ -249,26 +242,13 @@ class MachineLearningProcessor:
         transformed_data = {}
 
         for unmatched_key, value in unmatched_data.items():
-            # Generate embedding for the unmatched key
-            unmatched_embedding = self._get_embedding_contextual(unmatched_key)
 
             best_match = None
             best_similarity = 0
 
             for schema_key in schema.keys():
-                # Generate embedding for the schema key
-                schema_embedding = self._get_embedding_contextual(schema_key)
 
-                # Compute cosine similarity
-                similarity = self._cosine_similarity(
-                    unmatched_embedding, schema_embedding, schema_key
-                )
-                self.logger.debug(
-                    "Similarity between unmatched key '%s' and schema key '%s': %.2f",
-                    unmatched_key,
-                    schema_key,
-                    similarity,
-                )
+                similarity = self._get_bert_similarity(unmatched_key, schema_key, False)
 
                 if similarity > best_similarity:
                     best_similarity = similarity
@@ -291,27 +271,30 @@ class MachineLearningProcessor:
 
         return transformed_data
 
-    def _get_embedding_synonyms(self, text: str):
-        inputs = self.tokenizer(text, return_tensors="pt")
-        outputs = self.model(**inputs)
-        # self.logger.debug("Embedding for 'inputs': %s", inputs)
-        # self.logger.debug("Embedding for 'outputs': %s", outputs)
-        return outputs.last_hidden_state.mean(dim=1)  # Mean pooling of embeddings
+    def _get_bert_similarity(
+        self, string1: str, string2: str, debug: bool = False
+    ) -> float:
+        embedded_string1 = self._get_embedding(string1)
+        embedded_string2 = self._get_embedding(string2)
+        if debug:
+            self.logger.debug("Embedding for 'inputs': %s", embedded_string1)
+            self.logger.debug("Embedding for 'outputs': %s", embedded_string2)
+        similarity = self._cosine_similarity(embedded_string1, embedded_string2)
+        self.logger.debug(
+            "Similarity between '%s' and '%s': %.2f",
+            string1,
+            string2,
+            similarity,
+        )
+        return similarity
 
-    def _get_embedding_contextual(self, text: str) -> torch.Tensor:
+    def _get_embedding(self, text: str) -> torch.Tensor:
         inputs = self.tokenizer(text, return_tensors="pt")
         outputs = self.model(**inputs)
-        # self.logger.debug("Embedding for 'inputs': %s", inputs)
-        # self.logger.debug("Embedding for 'outputs': %s", outputs)
         return outputs.last_hidden_state.mean(dim=1)  # Mean pooling
 
-    def _cosine_similarity(
-        self, vec1: torch.Tensor, vec2: torch.Tensor, context: str
-    ) -> float:
+    def _cosine_similarity(self, vec1: torch.Tensor, vec2: torch.Tensor) -> float:
         similarity = torch.nn.functional.cosine_similarity(vec1, vec2).item()
-        self.logger.debug(
-            "Cosine similarity [%s] between vectors: %.2f", context, similarity
-        )
         return similarity
 
     def _is_rich_schema(self, schema):

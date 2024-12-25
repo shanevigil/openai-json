@@ -1,10 +1,9 @@
 import logging
 import json
 from openai_json.schema_handler import SchemaHandler
+from openai_json.data_manager import DataManager, ResultData
 from openai_json.api_interface import APIInterface
 from openai_json.heuristic_processor import HeuristicProcessor
-from openai_json.substructure_manager import SubstructureManager
-from openai_json.output_assembler import OutputAssembler
 from openai_json.ml_processor import MachineLearningProcessor
 
 
@@ -92,9 +91,8 @@ class OpenAI_JSON:
             gpt_api_key, model=gpt_model, temperature=gpt_temperature
         )
         self.heuristic_processor = HeuristicProcessor(self.schema_handler)
-        self.substructure_manager = SubstructureManager(self.schema_handler)
-        self.output_assembler = OutputAssembler(self.schema_handler)
         self.ml_processor = MachineLearningProcessor(model_path)
+        self.data_manager = DataManager(self.schema_handler)
 
         self.unmatched_data = []
         self.errors = []
@@ -161,18 +159,22 @@ class OpenAI_JSON:
             self.logger.error("Failed to parse JSON response: %s", e)
             return {"error": f"Failed to parse JSON response: {str(e)}"}
 
+        # Step 5: Add the parsed response
+        self.data_manager.add_result(ResultData(unmatched=parsed_response))
+
         # Step 5: Apply heuristic processing
         try:
-            processed_data, unmatched_data, errors = self.heuristic_processor.process(
-                parsed_response
+            self.data_manager.add_result(
+                self.heuristic_processor.process(
+                    self.data_manager.get_current_unmatched()
+                )
             )
+
             self.logger.info("Heuristic processing completed.")
-            self.logger.debug("Processed data: %s", processed_data)
-            self.logger.debug("Unmatched keys: %s", unmatched_data)
-            self.logger.debug("Errors: %s", errors)
         except Exception as e:
             self.logger.error("Heuristic processing failed: %s", e)
             return {"error": f"Heuristic processing failed: {str(e)}"}
+
         self.substructure_manager.store_unmatched_data(unmatched_data)
         self.substructure_manager.store_error_data(errors)
 

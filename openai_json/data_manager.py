@@ -9,8 +9,20 @@ class ResultData:
         self.unmatched = unmatched or {}
         self.errors = errors or {}
 
+    def __setattr__(self, name, value):
+        # TODO: Implement the case where someone wants to set the values by passing a ResultData object using self._merge method
+        if name in {"matched", "unmatched", "errors"} and isinstance(value, list):
+            # Convert list of dictionaries to a single dictionary
+            value = {k: v for d in value for k, v in d.items()}
+        super().__setattr__(name, value)
+
+    def _merge(self, rd):
+        # TODO implement ability to merge two ResultData Objects
+        return self
+
 
 class DataManager:
+
     def __init__(self, schema_handler: SchemaHandler):
         self.schema = schema_handler
         self.results = []

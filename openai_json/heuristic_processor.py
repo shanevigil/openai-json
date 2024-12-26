@@ -1,6 +1,7 @@
 import logging
 from openai_json.schema_handler import SchemaHandler
 from openai_json.data_manager import ResultData
+from openai_json.utils import build_path, normalize_response_data
 from word2number import w2n
 
 
@@ -33,7 +34,7 @@ class HeuristicProcessor:
             data (dict): The JSON response data.
 
         Returns:
-            tuple: A tuple of (processed_data, unmatched_keys, errors).
+            ResultData: A openai_json.data_manager ResultData object.
         """
         self.logger.debug("Starting heuristic processing for data: %s", data)
 
@@ -42,9 +43,9 @@ class HeuristicProcessor:
             self.logger.error("No schema provided in SchemaHandler.")
             raise ValueError("No schema provided for processing.")
 
-        processed, unmatched_keys, errors = self._process_nested(data, schema)
+        matched, unmatched, errors = self._process_nested(data, schema)
 
-        return ResultData(matched=processed, unmatched=unmatched_keys, errors=errors)
+        return ResultData(matched, unmatched, errors)
 
     def _process_nested(self, data: dict, schema: dict, path: str = "") -> tuple:
         """
@@ -56,102 +57,98 @@ class HeuristicProcessor:
             path (str): The current path in the nested structure.
 
         Returns:
-            tuple: A tuple of (processed_data, unmatched_keys).
+            tuple: A tuple of (matched, unmatched, errors).
         """
-        processed = {}
-        unmatched_keys = []
+        matched = []
+        unmatched = []
         errors = []
-        normalized_data = self._normalize_data(data)
+        normalized_data = normalize_response_data(data)
 
         for key, value in normalized_data.items():
-            current_path = self._build_path(path, key)
-            normalized_key = self.schema_handler.normalize_text(key)
-            field_definition = self._get_field_definition(schema, normalized_key)
-            expected_type = self.schema_handler.get_type_from_field(field_definition)
+            current_path = build_path(path, key)
+
+            expected_type = self.schema_handler.get_field_expected_type(key)
 
             if expected_type is list:
                 self._process_list_field(
-                    processed,
-                    unmatched_keys,
+                    matched,
+                    unmatched,
                     errors,
                     key,
                     value,
-                    field_definition,
+                    expected_type,
                     current_path,
                 )
             elif expected_type is dict and isinstance(value, dict):
                 self._process_dict_field(
-                    processed,
-                    unmatched_keys,
+                    matched,
+                    unmatched,
                     errors,
                     key,
                     value,
-                    field_definition,
+                    expected_type,
                     current_path,
                 )
             elif expected_type:
                 self._process_primitive_field(
-                    processed,
-                    unmatched_keys,
+                    matched,
+                    unmatched,
                     errors,
                     key,
                     value,
-                    normalized_key,
+                    key,
                     expected_type,
                     current_path,
                 )
             else:
                 self._process_unexpected_field(
-                    processed, unmatched_keys, errors, key, value, schema, current_path
+                    matched, unmatched, errors, key, value, schema, current_path
                 )
 
-        return processed, unmatched_keys, errors
-
-    def _normalize_data(self, data: dict) -> dict:
-        return {
-            self.schema_handler.normalize_text(key): value
-            for key, value in data.items()
-        }
-
-    def _build_path(self, path: str, key: str) -> str:
-        return f"{path}.{key}" if path else key
-
-    def _get_field_definition(self, schema: dict, normalized_key: str):
-        return schema.get("properties", {}).get(
-            normalized_key, schema.get(normalized_key)
-        )
+        return matched, unmatched, errors
 
     def _process_list_field(
-        self, processed, unmatched_keys, errors, key, value, field_definition, path
+        self, matched, unmatched, errors, key, value, expected_type, path
     ):
-        list_processed, list_unmatched, list_errors = self._process_list(
-            value, field_definition, path
+        list_matched, list_unmatched, list_errors = self._process_list(
+            value, expected_type, path
         )
-        if list_processed:
-            processed[self.schema_handler.normalize_text(key)] = list_processed
-        unmatched_keys.extend(list_unmatched)
+        if list_matched:
+            matched[self.schema_handler.normalize_text(key)] = list_matched
+        unmatched.extend(list_unmatched)
         errors.extend(list_errors)
 
     def _process_dict_field(
-        self, processed, unmatched_keys, errors, key, value, field_definition, path
+        self, matched, unmatched, errors, key, value, expected_type, path
     ):
-        nested_schema = field_definition.get("properties", field_definition)
-        nested_processed, nested_unmatched, nested_errors = self._process_nested(
-            value, nested_schema, path
+        if not isinstance(expected_type, dict):
+            self.logger.error(
+                "Expected type for field '%s' is not a valid dictionary schema: %s",
+                key,
+                expected_type,
+            )
+            errors.append({path: f"Invalid expected type: {expected_type}"})
+            return
+
+        # Process the nested dictionary field
+        nested_matched, nested_unmatched, nested_errors = self._process_nested(
+            value, expected_type, path
         )
-        if nested_processed:
-            processed[self.schema_handler.normalize_text(key)] = nested_processed
-        unmatched_keys.extend(nested_unmatched)
+
+        # Update results based on the processing of the nested structure
+        if nested_matched:
+            matched[self.schema_handler.normalize_text(key)] = nested_matched
+        unmatched.extend(nested_unmatched)
         errors.extend(nested_errors)
 
     def _process_primitive_field(
         self,
-        processed,
-        unmatched_keys,
+        matched,
+        unmatched,
         errors,
         key,
         value,
-        normalized_key,
+        key,
         expected_type,
         path,
     ):
@@ -160,7 +157,7 @@ class HeuristicProcessor:
             if isinstance(coerced_value, expected_type) or (
                 expected_type == "number" and isinstance(coerced_value, (int, float))
             ):
-                processed[normalized_key] = coerced_value
+                matched[key] = coerced_value
                 self.logger.debug(
                     "Primitive processing succeeded - path: %s, key: %s, value: %s, coerced to: %s",
                     path,
@@ -183,60 +180,98 @@ class HeuristicProcessor:
             errors.append({path: [value]})
 
     def _process_unexpected_field(
-        self, processed, unmatched_keys, errors, key, value, schema, path
+        self, matched, unmatched, errors, key, value, schema, path
     ):
         if isinstance(value, dict):
-            nested_processed, nested_unmatched, nested_errors = self._process_nested(
+            nested_matched, nested_unmatched, nested_errors = self._process_nested(
                 value, schema, path
             )
-            processed.update(nested_processed)
-            unmatched_keys.extend(nested_unmatched)
+            matched.update(nested_matched)
+            unmatched.extend(nested_unmatched)
             errors.extend(nested_errors)
         else:
-            unmatched_keys.append({path: value})
+            unmatched.append({path: value})
 
-    def _normalize_list_value(self, value, field_definition):
-        if isinstance(value, str) and field_definition.get("type") == "list":
+    def _normalize_list_value(self, value, expected_type):
+        if isinstance(value, str) and expected_type == list:
             return [item.strip() for item in value.split(",")]
         return value
 
     def _process_list(
-        self, value: any, field_definition: dict, current_path: str
+        self, value: any, expected_type: type, current_path: str
     ) -> tuple:
-        value = self._normalize_list_value(value, field_definition)
+        value = self._normalize_list_value(value, expected_type)
+
         if not isinstance(value, list):
-            return [], [{current_path: value}]
+            return [], [{current_path: value}], []
 
         matched_items, unmatched_items, errors = self._process_list_items(
-            value, field_definition, current_path
+            value, expected_type, current_path
         )
 
         return matched_items, unmatched_items, errors
 
-    def _process_list_items(self, value, field_definition, current_path):
-        matched_items = []
-        unmatched_items = {}
-        errors = []
+    def _process_list(
+        self, value: any, key: str, expected_type: type, current_path: str
+    ) -> tuple:
 
-        # Extract the expected schema for list items
-        items_definition = field_definition.get("items", {})
-        expected_type = self.schema_handler.get_type_from_field(items_definition)
+        if expected_type != list:
+            self.logger.error(
+                "Field '%s' at path '%s' is not defined as a list in the schema. Expected: %s",
+                key,
+                current_path,
+                expected_type,
+            )
+            return (
+                [],
+                [],
+                [{current_path: f"Expected a list, got {type(value).__name__}"}],
+            )
+
+        value = self._normalize_list_value(value, expected_type)
+
+        # Ensure the value is a list
+        if not isinstance(value, list):
+            return [], [], [{current_path: value}]
+
+        # Resolve the expected type for items in the list
+        items_key = f"{key}.items"
+        item_type = self.schema_handler.get_field_expected_type(items_key)
+
         self.logger.debug(
-            "Starting _process_list_items with value: %s, field_definition: %s, items_definition: %s, current_path: %s",
-            value,
-            field_definition,
-            items_definition,
+            "Processing list '%s' with item type: %s at path '%s'.",
+            key,
+            item_type,
             current_path,
         )
 
         # If no explicit type is specified, infer the type from the first item
-        if not expected_type and value:
+        if not item_type and value:
             inferred_type = type(value[0])
             self.logger.debug(
                 "No explicit type defined for list. Inferred type from first item: %s",
                 inferred_type,
             )
-            expected_type = inferred_type
+            item_type = inferred_type
+
+        # Delegate to _process_list_items
+        matched_items, unmatched_items, errors = self._process_list_items(
+            value, item_type, current_path
+        )
+
+        return matched_items, unmatched_items, errors
+
+    def _process_list_items(self, value, items_type, current_path):
+        matched_items = []
+        unmatched_items = []
+        errors = []
+
+        self.logger.debug(
+            "Starting _process_list_items with value: %s, items_type: %s, current_path: %s",
+            value,
+            items_type,
+            current_path,
+        )
 
         # Iterate over the list items
         for index, item in enumerate(value):
@@ -245,20 +280,19 @@ class HeuristicProcessor:
             try:
                 if isinstance(item, dict):
                     self.logger.debug(
-                        "Item is a dictionary. Field definition: %s, Items definition: %s",
-                        field_definition,
-                        items_definition,
+                        "Item is a dictionary. %s",
+                        item,
                     )
                     # Process the nested dictionary using the item schema
-                    nested_processed, nested_unmatched, nested_errors = (
-                        self._process_nested(item, items_definition, item_path)
+                    nested_matched, nested_unmatched, nested_errors = (
+                        self._process_nested(item, items_type, item_path)
                     )
 
-                    if nested_processed:
-                        matched_items.append(nested_processed)
+                    if nested_matched:
+                        matched_items.append(nested_matched)
                         self.logger.debug(
                             "Nested processing succeeded. Matched item: %s",
-                            nested_processed,
+                            nested_matched,
                         )
                     else:
                         self.logger.debug(
@@ -269,28 +303,28 @@ class HeuristicProcessor:
                     errors.extend(nested_errors)
                 else:
                     self.logger.debug(
-                        "Item is not a dictionary. Attempting to coerce type. Item: %s, Expected Type: %s",
+                        "Item is not a dictionary. Attempting to coerce type. Item: %s, Item Type: %s",
                         item,
-                        expected_type,
+                        items_type,
                     )
-                    coerced_item = self._coerce_item_type(item, expected_type)
+                    coerced_item = self._coerce_item_type(item, items_type)
 
                     if coerced_item is not None and isinstance(
-                        coerced_item, expected_type
+                        coerced_item, items_type
                     ):
                         matched_items.append(coerced_item)
                         self.logger.debug(
                             "Matched list item '%s' at path '%s' to type '%s'.",
                             item,
                             item_path,
-                            expected_type,
+                            items_type,
                         )
                     else:
                         self.logger.warning(
-                            "Failed to coerce item '%s' at path '%s'. Expected type: '%s'.",
+                            "Failed to coerce item '%s' at path '%s'. Item type: '%s'.",
                             item,
                             item_path,
-                            expected_type,
+                            items_type,
                         )
                         errors.append({item_path: item})
             except (ValueError, TypeError) as e:
@@ -298,7 +332,7 @@ class HeuristicProcessor:
                     "Failed to coerce item '%s' at path '%s' to type '%s': Error: %s",
                     item,
                     item_path,
-                    expected_type,
+                    items_type,
                     str(e),
                 )
                 errors.append({item_path: item})
@@ -318,23 +352,6 @@ class HeuristicProcessor:
         )
 
         return matched_items, unmatched_items, errors
-
-    def _validate_list_item(
-        self, item, item_schema, matched_items, unmatched_items, item_path
-    ):
-        expected_type = self.schema_handler.get_type_from_field(item_schema)
-        coerced_item = self._coerce_item_type(item, item_schema)
-
-        if isinstance(coerced_item, expected_type):
-            matched_items.append(coerced_item)
-            self.logger.debug(
-                "Matched list item '%s' at path '%s' to type '%s'.",
-                item,
-                item_path,
-                expected_type,
-            )
-        else:
-            unmatched_items[item_path] = [item]
 
     def _coerce_item_type(self, item, expected_type):
         if not expected_type:

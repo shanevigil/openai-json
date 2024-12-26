@@ -180,30 +180,71 @@ class SchemaHandler:
         Retrieves the expected Python type from a schema field definition.
 
         Args:
-            field (dict or str): The field definition in the schema.
+            field (dict or str): The field definition in the schema. Can be a dict with a "type" key or a shorthand type string.
 
         Returns:
             type or None: The Python type corresponding to the schema field, or None if the type is undefined.
+
+        Example:
+            python_type_reverse_mapping = {
+                "string": str,
+                "number": float,
+                "integer": int
+            }
+            field = {"type": "string"}
+            >>> schema_handler.get_type_from_field(field)
+            <class 'str'>
         """
         self.logger.debug("Field definition passed to get_type_from_field: %s", field)
 
         if isinstance(field, dict) and "type" in field:
             json_type = field["type"]
 
-            # Handle invalid nested type
+            # Validate that the type is not nested or malformed
             if isinstance(json_type, dict):
-                self.logger.error("Nested 'type' field detected: %s", json_type)
+                self.logger.error("Malformed 'type' field detected: %s", json_type)
                 raise ValueError(f"Invalid nested 'type': {json_type}")
 
-            # Map JSON type to Python type using reverse mapping
-            return self.python_type_reverse_mapping.get(json_type)
+            # Map JSON type to Python type
+            python_type = self.python_type_reverse_mapping.get(json_type)
+            if not python_type:
+                self.logger.warning("Unknown type '%s' in field definition.", json_type)
+            return python_type
 
         elif isinstance(field, str):
             # Handle shorthand type strings
             return self.python_type_reverse_mapping.get(field)
 
-        # Field type is undefined
+        # Undefined or unsupported field type
+        self.logger.warning("Unsupported field definition format: %s", field)
         return None
+
+    def get_field_expected_type(self, key: str):
+        """
+        Retrieves the expected Python type for a given field key based on the schema.
+
+        Args:
+            key (str): The normalized key of the field.
+
+        Returns:
+            type or None: The Python type corresponding to the field, or None if undefined.
+
+        Example:
+            schema = {
+                "name": {"type": "string"},
+                "age": {"type": "number"}
+            }
+            >>> schema_handler.get_field_expected_type("name")
+            <class 'str'>
+        """
+        # Retrieve the field definition from the normalized schema
+        field_definition = self.normalized_schema.get(key)
+        if not field_definition:
+            self.logger.debug("Field '%s' not found in schema.", key)
+            return None
+
+        # Use get_type_from_field to resolve the type
+        return self.get_type_from_field(field_definition)
 
     def register_type(self, python_type: type, json_type: str):
         """
@@ -324,7 +365,8 @@ class SchemaHandler:
 
         return {"added": added, "removed": removed, "changed": changed}
 
-    def normalize_text(self, text: str) -> str:
+    @staticmethod
+    def normalize_text(text: str) -> str:
         """
         Normalizes a given text by:
         - Converting CamelCase to spaced words.

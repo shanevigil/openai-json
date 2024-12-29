@@ -24,8 +24,8 @@ test_cases = [
                 "key_b": "Mary has a dog.",
                 "key_c": ["Max"],
             },
-            "unmatched_data": [],
-            "error": [],
+            "unmatched_data": {},
+            "error": {},
         },
     },
     {
@@ -40,14 +40,12 @@ test_cases = [
                 "key_a": 231,
                 "key_b": "Mary has a dog.",
             },
-            "unmatched_data": [
-                {
-                    "key_c": [
-                        "Max",
-                    ]
-                }
-            ],
-            "error": [],
+            "unmatched_data": {
+                "key_c": [
+                    "Max",
+                ]
+            },
+            "error": {},
         },
     },
     {
@@ -66,8 +64,8 @@ test_cases = [
                 "keys_with_camel_case": "Some Value",
                 "keys_with_underscore": "Some Value",
             },
-            "unmatched_data": [],
-            "error": [],
+            "unmatched_data": {},
+            "error": {},
         },
     },
     {
@@ -84,8 +82,8 @@ test_cases = [
                 "key_b": "Mary has three dogs.",
                 "key_c": ["Max", "Spot", "Rover"],
             },
-            "unmatched_data": [],
-            "error": [],
+            "unmatched_data": {},
+            "error": {},
         },
     },
     {
@@ -98,8 +96,8 @@ test_cases = [
             "processed_data": {
                 "key_a": ["tag1", "tag2", "tag3"],
             },
-            "unmatched_data": [],
-            "error": [],
+            "unmatched_data": {},
+            "error": {},
         },
     },
     {
@@ -134,8 +132,8 @@ test_cases = [
                 "key_i": True,
                 "key_j": False,
             },
-            "unmatched_data": [],
-            "error": [],
+            "unmatched_data": {},
+            "error": {},
         },
     },
     {
@@ -154,8 +152,8 @@ test_cases = [
                 "key_b": [1, 2, 3, 4],
                 "key_c": [1, 2, 3, 4, 5],
             },
-            "unmatched_data": [],
-            "error": [],
+            "unmatched_data": {},
+            "error": {},
         },
     },
     {
@@ -166,8 +164,8 @@ test_cases = [
         "response": '{"key_a": "abc"}',
         "expected": {
             "processed_data": {},
-            "unmatched_data": [],
-            "error": [{"key_a": "abc"}],
+            "unmatched_data": {},
+            "error": {"key_a": "abc"},
         },
     },
     {
@@ -184,8 +182,8 @@ test_cases = [
                 "key_b": "Mary has some dogs.",
                 "key_c": ["Max", "Rover", "3"],
             },
-            "unmatched_data": [],  # Dogs parent is erased as the child key was found
-            "error": [],
+            "unmatched_data": {},  # Dogs parent is erased as the child key was found
+            "error": {},
         },
     },
     {
@@ -216,11 +214,11 @@ test_cases = [
                 "age": 30,
                 "email": "john@example.com",
             },
-            "unmatched_data": [
-                {"nested.person.properties.alias": "Johnny"},
-                {"nested.person.properties.details.contact_info.phone": "888-888-8888"},
-            ],
-            "error": [],
+            "unmatched_data": {
+                "nested.person.properties.alias": "Johnny",
+                "nested.person.properties.details.contact_info.phone": "888-888-8888",
+            },
+            "error": {},
         },
     },
     {
@@ -231,11 +229,11 @@ test_cases = [
         "response": '{"Key A": "forty-two"}',
         "expected": {
             "processed_data": {"key_a": 42},
-            "unmatched_data": [],
-            "error": [],
+            "unmatched_data": {},
+            "error": {},
         },
     },
-    # TODO: The following test fails because w2n just extracts the numeric word and ignores the rest. Update code to handle edge case
+    # TODO: The following test fails because w2n just extracts the numeric word and ignores the rest. Research and implement a way to handle appropriate edges. Exclusion (any number but) makes sense, but do others? About 50 should be 50. If the field is numeric, no qualifiers are possible anyway, (e.g. "< 50", or "45>x>50", etc.). There is probably no json spec for "range" or inequality.
     # {
     #     "id": "Coercion Test N: Unsupported text returns original value",
     #     "schema": {
@@ -244,8 +242,8 @@ test_cases = [
     #     "response": '{"Key A": "any number but fifty"}',
     #     "expected": {
     #         "processed_data": {},
-    #         "unmatched_data": [],
-    #         "error": [{"key_a": "any number but fifty"}],
+    #         "unmatched_data": {},
+    #         "error": {"key_a": "any number but fifty"},
     #     },
     # },
     {
@@ -256,8 +254,8 @@ test_cases = [
         "response": '{"Key A": "not a number"}',
         "expected": {
             "processed_data": {},
-            "unmatched_data": [],
-            "error": [{"key_a": "not a number"}],
+            "unmatched_data": {},
+            "error": {"key_a": "not a number"},
         },
     },
     {
@@ -269,28 +267,24 @@ test_cases = [
         "response": '{"Key A": ["42", "forty-two", "not a number"], "Key B": [42, "Forty Two"]}',
         "expected": {
             "processed_data": {
-                "key_a": [
-                    42,
-                    42,
-                ],
-                "key_b": [
-                    42.0,
-                    42.0,
-                ],
+                "key_a": [42, 42],  # Expected coerced integers
+                "key_b": [42.0, 42.0],  # Expected floats
             },
-            "unmatched_data": [],
-            "error": [{"key_a[2]": "not a number"}],
+            "unmatched_data": {},  # No unmatched data
+            "error": {
+                "key_a[2]": "not a number",  # `not a number` should remain an error
+            },
         },
     },
-    # TODO: Implement functionality that will cause this test to pass
+    # TODO: IF the schema specifies a one to many relationship, nesting should work, e.g. people to person. However, if no nested structure is specified and a one to many relationship is returned, return the first record, and all everything else to unmatched, and log a warning.
     # {
     #     "id": "Nesting Test 3: Handles multiple entities despite single-schema field",
     #     "schema": {"name": {"type": "string"}},
     #     "response": '{"people": [{"person": {"name": "Alice"}}, {"person": {"name": "Bob"}}]}',
     #     "expected": {
-    #         "processed_data": [{"name": "Alice"}, {"name": "Bob"}],
-    #         "unmatched_data": [],
-    #         "error": [],
+    #         "processed_data": {"name": "Alice"},
+    #         "unmatched_data": {{"name": "Bob"}},
+    #         "error": {},
     #     },
     # },
 ]
@@ -315,15 +309,13 @@ def test_heuristic_processor_integration(
     parsed_response = json.loads(chatgpt_response)
 
     # Process the parsed response using HeuristicProcessor
-    processed_data, unmatched_keys, errors = heuristic_processor.process(
-        parsed_response
-    )
+    result = heuristic_processor.process(parsed_response)
 
     # Assert the processed data matches the expected output
-    assert processed_data == expected_output["processed_data"]
+    assert result.matched == expected_output["processed_data"]
 
     # Assert unmatched_keys matches expected unmatched_data
-    assert unmatched_keys == expected_output["unmatched_data"]
+    assert result.unmatched == expected_output["unmatched_data"]
 
     # Assert errors matches expected error
-    assert errors == expected_output["error"]
+    assert result.errors == expected_output["error"]

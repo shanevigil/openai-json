@@ -60,12 +60,12 @@ class DataManager:
 
         # Add unmatched items (if not already matched)
         for key, value in last_result.unmatched.items():
-            if key not in self.matched:
+            if key not in self.matched and key not in self.unmatched:
                 self.unmatched[key] = value
 
-        # Add errors (if not already matched)
+        # Add errors (if not already matched or in unmatched)
         for key, value in last_result.errors.items():
-            if key not in self.matched:
+            if key not in self.matched and key not in self.unmatched:
                 self.errors[key] = value
 
         self.logger.debug(
@@ -74,6 +74,7 @@ class DataManager:
             self.unmatched,
             self.errors,
         )
+
 
     def _reconcile(self):
         """Reconcile all results sequentially and log discrepancies."""
@@ -90,12 +91,13 @@ class DataManager:
                     reconciled_unmatched[key] = value
 
             for key, value in result.errors.items():
-                if key not in reconciled_matched:
+                if key not in reconciled_matched and key not in reconciled_unmatched:
                     reconciled_errors[key] = value
 
         self.matched = reconciled_matched
         self.unmatched = reconciled_unmatched
         self.errors = reconciled_errors
+
 
     def _log_state(self):
         """Helper to log the current state."""

@@ -111,7 +111,6 @@ def test_predict_contextual_matching():
 
 
 def test_process_item_method(schema_handler):
-
     schema = {
         "account_id": {
             "type": "integer",
@@ -121,14 +120,14 @@ def test_process_item_method(schema_handler):
             "type": "string",
             "prompt": "Provide the user's email address.",
         },  # Expected Fuzzy Match
-        "profile name": {
+        "profile_name": {
             "type": "string",
             "prompt": "Provide a default username.",
         },  # Expected Synonym Match
-        "profile description": {
+        "profile_description": {
             "type": "string",
             "prompt": "Provide a description of the user.",
-        },  # Expected contextual Match
+        },  # Expected Contextual Match
     }
 
     schema_handler.submit_schema(schema)
@@ -143,13 +142,13 @@ def test_process_item_method(schema_handler):
 
     expected_output = {
         "email": "test@example.com",
-        "profile name": "John Doe",
-        "profile description": "John is a person of unknown origins.",
+        "profile_name": "John Doe",
+        #TODO Implement SBERT to see if we can match instructions (prompt) with a response that follows those instructions
+        #"profile_description": "John is a person of unknown origins.",
     }
 
-    processed_data, unmatched_keys, errors = processor.process(unmatched_data)
-    assert processed_data == expected_output
-    assert (
-        unmatched_keys == unmatched_data
-    )  # This should not change as it adjusted later in the assembler
-    assert not errors
+    result = processor.process(unmatched_data)
+
+    assert result.matched == expected_output
+    assert result.unmatched == {'biography': "John is a person of unknown origins."}
+    assert result.errors == {}

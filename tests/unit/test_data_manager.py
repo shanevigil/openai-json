@@ -1,6 +1,6 @@
 import pytest
 from openai_json.data_manager import DataManager, ResultData
-
+from unittest.mock import Mock
 
 class TestDataManager:
     def test_add_result_updates_state(self, mock_schema_handler):
@@ -36,14 +36,14 @@ class TestDataManager:
 
         # Add second result with overlapping keys
         result2 = ResultData(
-            matched={"key2": "new_value2"},
+            matched={"key2": "new_value2","key3": "value3"},
             unmatched={"key4": "value4"},
             errors={"key5": "value5"},
         )
         data_manager.add_result(result2)
 
         # Assert final state
-        assert data_manager.matched == {"key1": "value1", "key2": "new_value2"}
+        assert data_manager.matched == {"key1": "value1", "key2": "new_value2","key3": "value3"}
         assert data_manager.unmatched == {"key4": "value4"}
         assert data_manager.errors == {"key5": "value5"}
 
@@ -110,7 +110,7 @@ class TestDataManager:
         data_manager = DataManager(mock_schema_handler)
 
         # Mock logger
-        data_manager.logger = pytest.Mock()
+        data_manager.logger = Mock()
 
         # Add a result
         result = ResultData(
@@ -122,3 +122,4 @@ class TestDataManager:
 
         # Assert logger was called
         data_manager.logger.debug.assert_called()
+

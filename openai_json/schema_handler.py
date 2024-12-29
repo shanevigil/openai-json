@@ -232,19 +232,32 @@ class SchemaHandler:
         Example:
             schema = {
                 "name": {"type": "string"},
-                "age": {"type": "number"}
+                "age": {"type": "number"},
+                "tags": {"type": "list", "items": {"type": "string"}}
             }
             >>> schema_handler.get_field_expected_type("name")
             <class 'str'>
+            >>> schema_handler.get_field_expected_type("tags.items")
+            <class 'str'>
         """
-        # Retrieve the field definition from the normalized schema
+        # Check if the key directly exists in the schema
         field_definition = self.normalized_schema.get(key)
-        if not field_definition:
-            self.logger.debug("Field '%s' not found in schema.", key)
-            return None
+        if field_definition:
+            # Use get_type_from_field to resolve the type
+            return self.get_type_from_field(field_definition)
 
-        # Use get_type_from_field to resolve the type
-        return self.get_type_from_field(field_definition)
+        # Handle 'items' key for list schemas (e.g., 'key_a.items')
+        if '.' in key and key.endswith('.items'):
+            parent_key = key.rsplit('.', 1)[0]  # Extract parent key (e.g., 'key_a')
+            parent_field = self.normalized_schema.get(parent_key)
+            if parent_field and parent_field.get('type') == 'list':
+                items_definition = parent_field.get('items')
+                if items_definition:
+                    return self.get_type_from_field(items_definition)
+
+        # Log and return None if the field is not found or cannot be resolved
+        self.logger.debug("Field '%s' not found in schema.", key)
+        return None
 
     def register_type(self, python_type: type, json_type: str):
         """

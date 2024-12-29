@@ -59,7 +59,7 @@ class HeuristicProcessor:
         Returns:
             tuple: A tuple of (matched, unmatched, errors).
         """
-        matched = []
+        matched = {}
         unmatched = []
         errors = []
         normalized_data = normalize_response_data(data)
@@ -92,11 +92,9 @@ class HeuristicProcessor:
             elif expected_type:
                 self._process_primitive_field(
                     matched,
-                    unmatched,
                     errors,
                     key,
                     value,
-                    key,
                     expected_type,
                     current_path,
                 )
@@ -111,7 +109,7 @@ class HeuristicProcessor:
         self, matched, unmatched, errors, key, value, expected_type, path
     ):
         list_matched, list_unmatched, list_errors = self._process_list(
-            value, expected_type, path
+            key, value, expected_type, path
         )
         if list_matched:
             matched[self.schema_handler.normalize_text(key)] = list_matched
@@ -144,11 +142,9 @@ class HeuristicProcessor:
     def _process_primitive_field(
         self,
         matched,
-        unmatched,
         errors,
         key,
         value,
-        key,
         expected_type,
         path,
     ):
@@ -198,21 +194,7 @@ class HeuristicProcessor:
         return value
 
     def _process_list(
-        self, value: any, expected_type: type, current_path: str
-    ) -> tuple:
-        value = self._normalize_list_value(value, expected_type)
-
-        if not isinstance(value, list):
-            return [], [{current_path: value}], []
-
-        matched_items, unmatched_items, errors = self._process_list_items(
-            value, expected_type, current_path
-        )
-
-        return matched_items, unmatched_items, errors
-
-    def _process_list(
-        self, value: any, key: str, expected_type: type, current_path: str
+        self, key: str, value: any, expected_type: type, current_path: str
     ) -> tuple:
 
         if expected_type != list:

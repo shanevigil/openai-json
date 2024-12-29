@@ -32,44 +32,62 @@ class MachineLearningProcessor:
         self.synonym_threshold = 0.75  # Similarity threshold for contextual matching
         self.contextual_threshold = 0.8  # Similarity threshold for contextual matching
 
-    def process(self, unmatched_data: dict) -> tuple:
+    def process(self, unmatched_data: dict) -> ResultData:
         """
         Processes the given data to align it with the schema.
 
         Args:
-            unmatched_data (dict): The JSON response data.
+            unmatched_data (dict): The JSON response data to be matched.
 
         Returns:
-            tuple: A tuple of (processed_data, unmatched_keys, errors).
+            ResultData: An object containing processed data, remaining unmatched response keys, and errors.
         """
         self.logger.info("Starting ML processing pipeline.")
         self.logger.debug("Initial unmatched data: %s", unmatched_data)
 
+        # Get a mutable copy of the schema
         schema = self.schema_handler.normalized_schema
         if not schema:
             self.logger.error("No schema provided in SchemaHandler.")
             raise ValueError("No schema provided for processing.")
 
+        unmatched_schema = dict(schema)  # Mutable copy of schema's unmatched keys
         processed_data = {}
-        unmatched_keys = []
         errors = []
+        remaining_unmatched_data = {}  # To track unmatched response items
 
-        for key, value in unmatched_data.items():
+        for key, value in unmatched_data.items():  # Iterate through the input unmatched data
             try:
-                transformed_item = self._process_item({key: value}, schema)
-                processed_data.update(transformed_item)
+                # Process each item against the current unmatched schema
+                unmatched_data_item = {key: value}
+                transformed_item = self._process_item(unmatched_data_item, unmatched_schema)
+
+                if transformed_item:
+                    # Add matches to processed_data
+                    processed_data.update(transformed_item)
+
+                    # Remove matched schema keys from unmatched_schema
+                    for matched_key in transformed_item.keys():
+                        unmatched_schema.pop(matched_key, None)
+                else:
+                    # If no match found, retain the item in remaining_unmatched_data
+                    remaining_unmatched_data[key] = value
             except Exception as e:
                 self.logger.error("Error processing key '%s': %s", key, e)
                 errors.append({key: value})
 
         self.logger.info("Processing pipeline completed.")
         self.logger.debug("Processed data: %s", processed_data)
-        self.logger.debug("Unmatched keys: %s", unmatched_keys)
+        self.logger.debug("Remaining unmatched response data: %s", remaining_unmatched_data)
         self.logger.debug("Errors: %s", errors)
 
         return ResultData(
-            matched=processed_data, unmatched=unmatched_keys, errors=errors
+            matched=processed_data,
+            unmatched=remaining_unmatched_data,  # Remaining unmatched response items
+            errors=errors
         )
+
+
 
     def _process_item(self, unmatched_data_item: dict, schema: dict) -> dict:
         self.logger.info("Processing individual item.")

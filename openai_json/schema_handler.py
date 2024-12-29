@@ -106,13 +106,25 @@ class SchemaHandler:
                         current[part] = {}
                     current = current[part]
                 current[parts[-1]] = (
-                    "example string" if field_type == "string"
-                    else [] if field_type in ["array", "list"]
-                    else {} if field_type == "object"
-                    else 123 if field_type == "integer"
-                    else 123.45 if field_type == "number"
-                    else True if field_type == "boolean"
-                    else None
+                    "example string"
+                    if field_type == "string"
+                    else (
+                        []
+                        if field_type in ["array", "list"]
+                        else (
+                            {}
+                            if field_type == "object"
+                            else (
+                                123
+                                if field_type == "integer"
+                                else (
+                                    123.45
+                                    if field_type == "number"
+                                    else True if field_type == "boolean" else None
+                                )
+                            )
+                        )
+                    )
                 )
             else:
                 # Handle non-nested fields
@@ -132,7 +144,6 @@ class SchemaHandler:
                     example[key] = None  # Default fallback for unknown types
         self.logger.debug("Generated example JSON: %s", example)
         return json.dumps(example, indent=2)
-
 
     def extract_prompts(
         self, prefix: str = "Here are the field-specific instructions:"

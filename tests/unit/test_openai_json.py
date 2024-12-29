@@ -1,5 +1,4 @@
 import pytest
-from unittest.mock import patch, MagicMock
 from openai_json.openai_json import OpenAI_JSON
 
 
@@ -18,7 +17,7 @@ def expected_messages():
 
 def test_OpenAI_JSON_valid(mock_openai_client, expected_messages):
     """Integration test for OpenAI_JSON with valid inputs and mocked OpenAI client."""
-    mock_client, set_mock_response, _ = mock_openai_client
+    sync_mock_client, _, set_mock_response, _ = mock_openai_client
 
     # Prepare the schema and query
     schema = {
@@ -36,7 +35,7 @@ def test_OpenAI_JSON_valid(mock_openai_client, expected_messages):
 
     # Create OpenAI_JSON instance
     client = OpenAI_JSON(gpt_api_key="mock-api-key")
-    client.api_client = mock_client
+    client.api_client = sync_mock_client
 
     # Run the handle_request method
     response = client.handle_request(query, schema)
@@ -46,14 +45,15 @@ def test_OpenAI_JSON_valid(mock_openai_client, expected_messages):
         "name": "John",
         "age": 30,
         "email": "john@example.com",
-        "addres": "4 privet drive",  # Test fuzzy Matching - chat GPT correctly spelled address, but it should match back to addres
+        "addres": "4 privet drive",  # Test fuzzy matching
     }
     assert client.unmatched_data == {}
     assert client.errors == {}
 
 
 def test_OpenAI_JSON_with_unmatched_data(mock_openai_client, expected_messages):
-    mock_client, set_mock_response, _ = mock_openai_client
+    """Test OpenAI_JSON handling of unmatched data."""
+    sync_mock_client, _, set_mock_response, _ = mock_openai_client
 
     schema = {"First Name": {"type": "string"}, "Age": {"type": "integer"}}
     query = "Generate a JSON object with name and age."
@@ -62,9 +62,7 @@ def test_OpenAI_JSON_with_unmatched_data(mock_openai_client, expected_messages):
     set_mock_response('{"first_name": "Alice", "age": 25, "extra": "unexpected"}')
 
     client = OpenAI_JSON(gpt_api_key="mock-api-key")
-    client.api_client = mock_client
-
-    expected_payload = expected_messages(query)
+    client.api_client = sync_mock_client
 
     response = client.handle_request(query, schema)
 
@@ -75,7 +73,7 @@ def test_OpenAI_JSON_with_unmatched_data(mock_openai_client, expected_messages):
 
 def test_OpenAI_JSON_with_errors(mock_openai_client, expected_messages):
     """Test OpenAI_JSON with inputs that produce errors during heuristic processing."""
-    mock_client, set_mock_response, _ = mock_openai_client
+    sync_mock_client, _, set_mock_response, _ = mock_openai_client
 
     # Prepare the schema and query
     schema = {
@@ -90,9 +88,8 @@ def test_OpenAI_JSON_with_errors(mock_openai_client, expected_messages):
         '{"name": "Alice", "age": "twenty-five", "email": "alice@someplace.com"}'
     )
 
-    # Create OpenAI_JSON instance
     client = OpenAI_JSON(gpt_api_key="mock-api-key")
-    client.api_client = mock_client
+    client.api_client = sync_mock_client
 
     # Run the handle_request method
     response = client.handle_request(query, schema)
@@ -103,61 +100,15 @@ def test_OpenAI_JSON_with_errors(mock_openai_client, expected_messages):
         "email": "alice@someplace.com",
         "age": 25,
     }  # Only valid data should be returned
-    assert client.unmatched_data == {}  # No unmatched keys since keys exist in response
+    assert client.unmatched_data == {}
     assert client.errors == {}
-
-
-from unittest.mock import patch, MagicMock
-
-
-def test_OpenAI_JSON_with_system_message(mock_openai_client, expected_messages):
-    """Test OpenAI_JSON to ensure the system message is included in the payload."""
-    # Prepare schema and query
-    schema = {
-        "name": {"type": "string", "prompt": "The full given name"},
-        "age": {"type": "integer", "prompt": "The age of the famous person"},
-        "email": {"type": "string", "prompt": "The personal email address"},
-    }
-    query = "Who was the most famous person in 1950?"
-
-    # Expected system message and schema prompts
-    system_message = "Respond in valid JSON format."
-    schema_prompts = (
-        "Here are the field-specific instructions:\n"
-        "name: The full given name\n"
-        "age: The age of the famous person\n"
-        "email: The personal email address"
-    )
-    combined_query = f"{query}\n\n{schema_prompts}"
-
-    # Mock response content
-    mock_content = '{"name": "Alice", "age": 30, "email": "alice@example.com"}'
-
-    # Patch the send_query method in APIInterface
-    with patch(
-        "openai_json.api_interface.APIInterface.send_query", return_value=mock_content
-    ) as mock_send_query:
-        # Create OpenAI_JSON instance
-        client = OpenAI_JSON(gpt_api_key="mock-api-key")
-
-        # Run the handle_request method
-        response = client.handle_request(query, schema)
-
-        # Verify the send_query method was called with the combined query
-        mock_send_query.assert_called_once_with(combined_query)
-
-        # Verify the final response matches the mocked content
-        assert response == {
-            "name": "Alice",
-            "age": 30,
-            "email": "alice@example.com",
-        }
 
 
 def test_OpenAI_JSON_with_system_message(mock_openai_client, schema_handler):
     """Test OpenAI_JSON to ensure the system message includes the example JSON and schema prompts."""
-    # Unpack the mock OpenAI client and helpers
-    mock_client, set_mock_response, expected_system_message_base = mock_openai_client
+    sync_mock_client, _, set_mock_response, expected_system_message_base = (
+        mock_openai_client
+    )
 
     # Prepare schema and query
     schema = {
@@ -170,7 +121,6 @@ def test_OpenAI_JSON_with_system_message(mock_openai_client, schema_handler):
     # Use the SchemaHandler to generate example JSON
     schema_handler.submit_schema(schema)
     example_json = schema_handler.generate_example_json()
-    print(f"Example json is '{example_json}'")
 
     # Construct the expected system message
     expected_system_message = f"{expected_system_message_base} Use the following example JSON as a reference:\n{example_json}"
@@ -182,24 +132,23 @@ def test_OpenAI_JSON_with_system_message(mock_openai_client, schema_handler):
         "age: The age of the famous person\n"
         "email: The personal email address"
     )
-    combined_query = (
-        f"{query}\n\n{schema_prompts}\n\nPlease ensure the response adheres to the following schema:\n{example_json}"
-    )
+    combined_query = f"{query}\n\n{schema_prompts}\n\nPlease ensure the response adheres to the following schema:\n{example_json}"
 
     # Mock response content
     mock_content = '{"name": "Alice", "age": 30, "email": "alice@example.com"}'
     set_mock_response(mock_content)  # Configure the mock response
 
-    # Create OpenAI_JSON instance with schema
     client = OpenAI_JSON(gpt_api_key="mock-api-key", schema=schema)
-    client.api_client = mock_client  # Use the mocked client
+    client.api_client = sync_mock_client
 
     # Run the handle_request method
     response = client.handle_request(query, schema)
 
     # Verify the API was called with the expected payload
-    mock_client.chat.completions.create.assert_called_once()
-    called_args = mock_client.chat.completions.create.call_args[1]  # Extract call arguments
+    sync_mock_client.chat.completions.create.assert_called_once()
+    called_args = sync_mock_client.chat.completions.create.call_args[
+        1
+    ]  # Extract call arguments
 
     # Validate the system message
     assert called_args["messages"][0] == {

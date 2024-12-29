@@ -16,6 +16,7 @@ safetensors==0.4.5          # Lightweight tensor serialization (transformers dep
 # Development and Testing
 flake8==7.1.1               # For linting
 pytest==8.3.4               # For testing
+pytest-asyncio==8.3.4       # For Async testing
 
 # Documentation
 Sphinx==7.4.7               # For documentation

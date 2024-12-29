@@ -144,8 +144,12 @@ class OpenAI_JSON:
         try:
             prompts_string = self.schema_handler.extract_prompts()
             query_with_prompts = f"{query}\n\n{prompts_string}"
-            instructions_string = "\n\nPlease ensure the response adheres to the following schema:\n"
-            full_query = f"{query_with_prompts}{instructions_string}{self.example_json_string}"
+            instructions_string = (
+                "\n\nPlease ensure the response adheres to the following schema:\n"
+            )
+            full_query = (
+                f"{query_with_prompts}{instructions_string}{self.example_json_string}"
+            )
             self.logger.debug("The Full query is: %s", full_query)
         except Exception as e:
             self.logger.error("Failed to extract prompts: %s", e)

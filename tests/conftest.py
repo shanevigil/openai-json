@@ -1,5 +1,6 @@
 # tests/conftest.py
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
+
 import pytest
 from openai_json.schema_handler import SchemaHandler
 import logging
@@ -13,24 +14,62 @@ def pytest_configure(config):
 
 
 @pytest.fixture
-def mock_openai_client():
-    """Fixture to mock the OpenAI client and its response."""
-    with patch("openai.OpenAI") as mock_openai:
-        # Create a mock client instance
-        mock_client = MagicMock()
-        mock_openai.return_value = mock_client
+def mock_openai_client(monkeypatch):
+    """Fixture to mock both sync and async OpenAI clients and their response behavior."""
+    # Create separate mock clients for sync and async
+    sync_mock_client = MagicMock()
+    async_mock_client = AsyncMock()
 
-        # Provide a way to set the mock response dynamically
-        def set_mock_response(mock_content):
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock(message=MagicMock(content=mock_content))]
-            mock_client.chat.completions.create.return_value = mock_response
+    # Function to set mock responses dynamically for both sync and async clients
+    def set_mock_response(mock_content):
+        # Mock response for sync client
+        sync_response = MagicMock()
+        sync_response.choices = [MagicMock(message=MagicMock(content=mock_content))]
+        sync_mock_client.chat.completions.create.return_value = sync_response
 
-        # Base system message; updated in tests as needed
-        expected_system_message_base = "Respond in valid JSON format."
+        # Mock response for async client
+        async_response = AsyncMock()
+        async_response.choices = [MagicMock(message=MagicMock(content=mock_content))]
+        async_mock_client.chat.completions.create.return_value = async_response
 
-        # Wrap the client and additional data
-        yield mock_client, set_mock_response, expected_system_message_base
+    # Base system message; updated in tests as needed
+    expected_system_message_base = "Respond in valid JSON format."
+
+    # Patch both sync and async clients in the target module
+    monkeypatch.setattr(
+        "openai_json.api_interface.OpenAI", lambda api_key: sync_mock_client
+    )
+    monkeypatch.setattr(
+        "openai_json.api_interface.AsyncOpenAI", lambda api_key: async_mock_client
+    )
+
+    return (
+        sync_mock_client,
+        async_mock_client,
+        set_mock_response,
+        expected_system_message_base,
+    )
+
+
+# @pytest.fixture
+# def mock_openai_client():
+#     """Fixture to mock the OpenAI client and its response."""
+#     with patch("openai_json.api_interface.OpenAI") as MockOpenAI:
+#         # Create a mock client instance
+#         mock_client = MagicMock()
+#         MockOpenAI.return_value = mock_client
+
+#         # Provide a way to set the mock response dynamically
+#         def set_mock_response(mock_content):
+#             mock_response = MagicMock()
+#             mock_response.choices = [MagicMock(message=MagicMock(content=mock_content))]
+#             mock_client.chat.completions.create.return_value = mock_response
+
+#         # Base system message; updated in tests as needed
+#         expected_system_message_base = "Respond in valid JSON format."
+
+#         # Return the mock client and helper functions
+#         yield mock_client, set_mock_response, expected_system_message_base
 
 
 @pytest.fixture

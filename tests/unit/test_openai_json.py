@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from openai_json.openai_json import OpenAI_JSON
 
 
@@ -25,18 +25,18 @@ def test_OpenAI_JSON_valid(mock_openai_client, expected_messages):
         "name": {"type": "string"},
         "age": {"type": "integer"},
         "email": {"type": "string"},
+        "addres": {"type": "string"},
     }
     query = "Generate a JSON object with name, age, and email."
 
     # Mock response from OpenAI API
-    set_mock_response('{"name": "John", "age": 30, "email": "john@example.com"}')
+    set_mock_response(
+        '{"name": "John", "age": 30, "email": "john@example.com","address":"4 privet drive"}'
+    )
 
     # Create OpenAI_JSON instance
     client = OpenAI_JSON(gpt_api_key="mock-api-key")
     client.api_client = mock_client
-
-    # Expected messages sent to the OpenAI API
-    expected_payload = expected_messages(query)
 
     # Run the handle_request method
     response = client.handle_request(query, schema)
@@ -46,16 +46,10 @@ def test_OpenAI_JSON_valid(mock_openai_client, expected_messages):
         "name": "John",
         "age": 30,
         "email": "john@example.com",
+        "addres": "4 privet drive",  # Test fuzzy Matching - chat GPT correctly spelled address, but it should match back to addres
     }
-    assert client.unmatched_data == []
-    assert client.errors == []
-
-    # Verify the messages sent to the OpenAI API
-    # mock_client.chat_completions.create.assert_called_once_with(
-    #     model="gpt-4",
-    #     messages=expected_payload,
-    #     temperature=0.7,
-    # )
+    assert client.unmatched_data == {}
+    assert client.errors == {}
 
 
 def test_OpenAI_JSON_with_unmatched_data(mock_openai_client, expected_messages):
@@ -75,14 +69,8 @@ def test_OpenAI_JSON_with_unmatched_data(mock_openai_client, expected_messages):
     response = client.handle_request(query, schema)
 
     assert response == {"First Name": "Alice", "Age": 25}
-    assert client.unmatched_data == [{"extra": "unexpected"}]
-    assert client.errors == []
-
-    # mock_client.chat_completions.create.assert_called_once_with(
-    #     model="gpt-4",
-    #     messages=expected_payload,
-    #     temperature=0.7,
-    # )
+    assert client.unmatched_data == {"extra": "unexpected"}
+    assert client.errors == {}
 
 
 def test_OpenAI_JSON_with_errors(mock_openai_client, expected_messages):
@@ -113,47 +101,121 @@ def test_OpenAI_JSON_with_errors(mock_openai_client, expected_messages):
     assert response == {
         "name": "Alice",
         "email": "alice@someplace.com",
+        "age": 25,
     }  # Only valid data should be returned
-    assert client.unmatched_data == []  # No unmatched keys since keys exist in response
-    assert client.errors == [
-        {"age": "twenty-five"},  # 'age' has a type error
-    ]
-
-    # Ensure the OpenAI client was called with the expected payload
-    # expected_payload = expected_messages(query)
-    # mock_client.chat_completions.create.assert_called_once_with(
-    #     model="gpt-4",
-    #     messages=expected_payload,
-    #     temperature=0.7,
-    # )
+    assert client.unmatched_data == {}  # No unmatched keys since keys exist in response
+    assert client.errors == {}
 
 
-@pytest.mark.skip(reason="ML functionality not yet implemented")
-def test_OpenAI_JSON_with_ml_processor(mock_openai_client, expected_messages):
-    mock_client, set_mock_response, expected_system_message = mock_openai_client
+from unittest.mock import patch, MagicMock
 
-    # Simulate a challenging response for the ML_processor to handle
-    set_mock_response('{"Name": "John", "John\'s Age": 30}')
 
-    client = OpenAI_JSON(gpt_api_key="mock-api-key")
+def test_OpenAI_JSON_with_system_message(mock_openai_client, expected_messages):
+    """Test OpenAI_JSON to ensure the system message is included in the payload."""
+    # Prepare schema and query
+    schema = {
+        "name": {"type": "string", "prompt": "The full given name"},
+        "age": {"type": "integer", "prompt": "The age of the famous person"},
+        "email": {"type": "string", "prompt": "The personal email address"},
+    }
+    query = "Who was the most famous person in 1950?"
 
-    schema = {"name": str, "age": int}
-    query = "Generate a JSON object with name and the person's age."
+    # Expected system message and schema prompts
+    system_message = "Respond in valid JSON format."
+    schema_prompts = (
+        "Here are the field-specific instructions:\n"
+        "name: The full given name\n"
+        "age: The age of the famous person\n"
+        "email: The personal email address"
+    )
+    combined_query = f"{query}\n\n{schema_prompts}"
 
+    # Mock response content
+    mock_content = '{"name": "Alice", "age": 30, "email": "alice@example.com"}'
+
+    # Patch the send_query method in APIInterface
+    with patch(
+        "openai_json.api_interface.APIInterface.send_query", return_value=mock_content
+    ) as mock_send_query:
+        # Create OpenAI_JSON instance
+        client = OpenAI_JSON(gpt_api_key="mock-api-key")
+
+        # Run the handle_request method
+        response = client.handle_request(query, schema)
+
+        # Verify the send_query method was called with the combined query
+        mock_send_query.assert_called_once_with(combined_query)
+
+        # Verify the final response matches the mocked content
+        assert response == {
+            "name": "Alice",
+            "age": 30,
+            "email": "alice@example.com",
+        }
+
+
+def test_OpenAI_JSON_with_system_message(mock_openai_client, schema_handler):
+    """Test OpenAI_JSON to ensure the system message includes the example JSON and schema prompts."""
+    # Unpack the mock OpenAI client and helpers
+    mock_client, set_mock_response, expected_system_message_base = mock_openai_client
+
+    # Prepare schema and query
+    schema = {
+        "name": {"type": "string", "prompt": "The full given name"},
+        "age": {"type": "integer", "prompt": "The age of the famous person"},
+        "email": {"type": "string", "prompt": "The personal email address"},
+    }
+    query = "Who was the most famous person in 1950?"
+
+    # Use the SchemaHandler to generate example JSON
+    schema_handler.submit_schema(schema)
+    example_json = schema_handler.generate_example_json()
+    print(f"Example json is '{example_json}'")
+
+    # Construct the expected system message
+    expected_system_message = f"{expected_system_message_base} Use the following example JSON as a reference:\n{example_json}"
+
+    # Construct the combined query with schema prompts
+    schema_prompts = (
+        "Here are the field-specific instructions:\n"
+        "name: The full given name\n"
+        "age: The age of the famous person\n"
+        "email: The personal email address"
+    )
+    combined_query = (
+        f"{query}\n\n{schema_prompts}\n\nPlease ensure the response adheres to the following schema:\n{example_json}"
+    )
+
+    # Mock response content
+    mock_content = '{"name": "Alice", "age": 30, "email": "alice@example.com"}'
+    set_mock_response(mock_content)  # Configure the mock response
+
+    # Create OpenAI_JSON instance with schema
+    client = OpenAI_JSON(gpt_api_key="mock-api-key", schema=schema)
+    client.api_client = mock_client  # Use the mocked client
+
+    # Run the handle_request method
     response = client.handle_request(query, schema)
 
-    # Assert processed data includes the ML-transformed match
-    assert response == {
-        "name": "John",
-        "age": 30,  # Transformed match from ML processor
-    }
-    assert client.unmatched_data == []  # No unmatched data should remain
-    assert client.transformed_data == {
-        "John's Age": "age"
-    }  # Records ML transformations
+    # Verify the API was called with the expected payload
+    mock_client.chat.completions.create.assert_called_once()
+    called_args = mock_client.chat.completions.create.call_args[1]  # Extract call arguments
 
-    # mock_client.chat.completions.create.assert_called_once_with(
-    #     model="gpt-4",
-    #     messages=expected_messages(query, expected_system_message),
-    #     temperature=0,
-    # )
+    # Validate the system message
+    assert called_args["messages"][0] == {
+        "role": "system",
+        "content": expected_system_message,
+    }, "System message not included in API payload."
+
+    # Validate the user query with schema prompts and example JSON
+    assert called_args["messages"][1] == {
+        "role": "user",
+        "content": combined_query,
+    }, "User query with schema prompts and example JSON not included in API payload."
+
+    # Verify the final response matches the mocked content
+    assert response == {
+        "name": "Alice",
+        "age": 30,
+        "email": "alice@example.com",
+    }

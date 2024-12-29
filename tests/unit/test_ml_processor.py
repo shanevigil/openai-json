@@ -143,12 +143,12 @@ def test_process_item_method(schema_handler):
     expected_output = {
         "email": "test@example.com",
         "profile_name": "John Doe",
-        #TODO Implement SBERT to see if we can match instructions (prompt) with a response that follows those instructions
-        #"profile_description": "John is a person of unknown origins.",
+        # TODO Implement SBERT to see if we can match instructions (prompt) with a response that follows those instructions
+        # "profile_description": "John is a person of unknown origins.",
     }
 
     result = processor.process(unmatched_data)
 
     assert result.matched == expected_output
-    assert result.unmatched == {'biography': "John is a person of unknown origins."}
+    assert result.unmatched == {"biography": "John is a person of unknown origins."}
     assert result.errors == {}

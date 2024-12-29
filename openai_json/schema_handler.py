@@ -83,6 +83,57 @@ class SchemaHandler:
         # Normalize schema for Python-specific processing
         self.normalized_schema = self._normalize_schema(schema)
 
+    def generate_example_json(self) -> str:
+        """
+        Generates an example JSON string based on the normalized schema.
+
+        Returns:
+            str: A JSON-formatted string representing an example output.
+        """
+        if not self.normalized_schema:
+            self.logger.debug("No normalized schema available for example generation.")
+            return "{}"
+
+        example = {}
+        for key, details in self.normalized_schema.items():
+            field_type = details.get("type")
+            # Handle nested fields
+            if "." in key:
+                parts = key.split(".")
+                current = example
+                for part in parts[:-1]:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                current[parts[-1]] = (
+                    "example string" if field_type == "string"
+                    else [] if field_type in ["array", "list"]
+                    else {} if field_type == "object"
+                    else 123 if field_type == "integer"
+                    else 123.45 if field_type == "number"
+                    else True if field_type == "boolean"
+                    else None
+                )
+            else:
+                # Handle non-nested fields
+                if field_type == "string":
+                    example[key] = "example string"
+                elif field_type == "integer":
+                    example[key] = 123
+                elif field_type == "number":
+                    example[key] = 123.45
+                elif field_type == "boolean":
+                    example[key] = True
+                elif field_type in ["array", "list"]:
+                    example[key] = []
+                elif field_type == "object":
+                    example[key] = {}
+                else:
+                    example[key] = None  # Default fallback for unknown types
+        self.logger.debug("Generated example JSON: %s", example)
+        return json.dumps(example, indent=2)
+
+
     def extract_prompts(
         self, prefix: str = "Here are the field-specific instructions:"
     ) -> str:
@@ -247,11 +298,11 @@ class SchemaHandler:
             return self.get_type_from_field(field_definition)
 
         # Handle 'items' key for list schemas (e.g., 'key_a.items')
-        if '.' in key and key.endswith('.items'):
-            parent_key = key.rsplit('.', 1)[0]  # Extract parent key (e.g., 'key_a')
+        if "." in key and key.endswith(".items"):
+            parent_key = key.rsplit(".", 1)[0]  # Extract parent key (e.g., 'key_a')
             parent_field = self.normalized_schema.get(parent_key)
-            if parent_field and parent_field.get('type') == 'list':
-                items_definition = parent_field.get('items')
+            if parent_field and parent_field.get("type") == "list":
+                items_definition = parent_field.get("items")
                 if items_definition:
                     return self.get_type_from_field(items_definition)
 

@@ -36,8 +36,6 @@ class APIInterface:
             temperature (float, optional): Sampling temperature for the model, controlling randomness
                 in responses. A value closer to 0 produces deterministic outputs, while higher values
                 generate more diverse outputs. Defaults to 0.0.
-            schema (dict, optional): JSON schema for validating responses. If provided, the schema
-                is used to ensure the output adheres to expected structures. Defaults to None.
 
         Attributes:
             client (openai.OpenAI): OpenAI client initialized with the provided API key.
@@ -45,7 +43,6 @@ class APIInterface:
             retries (int): Number of retry attempts for API calls.
             system_message (str): Instruction message to guide the model's output.
             temperature (float): Sampling temperature for response generation.
-            schema (dict): JSON schema used for validating responses.
             logger (logging.Logger): Logger instance for logging API interactions and errors.
         """
         self.client = openai.OpenAI(api_key=api_key)
@@ -53,7 +50,6 @@ class APIInterface:
         self.retries = retries
         self.system_message = system_message
         self.temperature = temperature
-        self.schema = schema
 
         self.logger = logging.getLogger(__name__)  # Use existing logger configuration
 

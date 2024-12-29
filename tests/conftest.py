@@ -26,11 +26,11 @@ def mock_openai_client():
             mock_response.choices = [MagicMock(message=MagicMock(content=mock_content))]
             mock_client.chat.completions.create.return_value = mock_response
 
-        # Track the system message
-        expected_system_message = "Respond in valid JSON format."
+        # Base system message; updated in tests as needed
+        expected_system_message_base = "Respond in valid JSON format."
 
         # Wrap the client and additional data
-        yield mock_client, set_mock_response, expected_system_message
+        yield mock_client, set_mock_response, expected_system_message_base
 
 
 @pytest.fixture
@@ -48,7 +48,15 @@ def mock_schema_handler():
     schema_handler.submit_schema(
         {
             "type": "object",
-            "properties": {"name": {"type": "string"}, "age": {"type": "integer"}},
+            "properties": {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+                "email": {"type": "string"},
+            },
         }
     )
-    return schema_handler
+
+    # Generate example JSON for this schema
+    example_json = schema_handler.generate_example_json()
+
+    return schema_handler, example_json

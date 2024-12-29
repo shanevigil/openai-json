@@ -32,7 +32,6 @@ class OpenAI_JSON:
         self,
         gpt_api_key: str,
         schema: str or dict = None,
-        model_path: str = None,
         gpt_model: str = "gpt-4",
         gpt_temperature: float = 0,
     ):
@@ -87,11 +86,18 @@ class OpenAI_JSON:
         self.logger.info("Initializing OpenAI_JSON with OpenAI API and ML components.")
 
         self.schema_handler = SchemaHandler(schema)
+
+        self.example_json_string = self.schema_handler.generate_example_json()
+        system_message = f"Respond in valid JSON format. Use the following example JSON as a reference:\n{self.example_json_string}"
+
         self.api_interface = APIInterface(
-            gpt_api_key, model=gpt_model, temperature=gpt_temperature
+            gpt_api_key,
+            model=gpt_model,
+            temperature=gpt_temperature,
+            system_message=system_message,
         )
         self.heuristic_processor = HeuristicProcessor(self.schema_handler)
-        self.ml_processor = MachineLearningProcessor(model_path)
+        self.ml_processor = MachineLearningProcessor(self.schema_handler)
         self.data_manager = DataManager(self.schema_handler)
 
         self.unmatched_data = []
@@ -138,14 +144,16 @@ class OpenAI_JSON:
         try:
             prompts_string = self.schema_handler.extract_prompts()
             query_with_prompts = f"{query}\n\n{prompts_string}"
-            self.logger.debug("Query with appended prompts: %s", query_with_prompts)
+            instructions_string = "\n\nPlease ensure the response adheres to the following schema:\n"
+            full_query = f"{query_with_prompts}{instructions_string}{self.example_json_string}"
+            self.logger.debug("The Full query is: %s", full_query)
         except Exception as e:
             self.logger.error("Failed to extract prompts: %s", e)
             return {"error": f"Prompt extraction failed: {str(e)}"}
 
         # Step 3: Send query to OpenAI API
         try:
-            raw_response = self.api_interface.send_query(query_with_prompts)
+            raw_response = self.api_interface.send_query(full_query)
             self.logger.info("Received raw response from OpenAI API.")
         except RuntimeError as e:
             self.logger.error("Failed to fetch response from OpenAI API: %s", e)
@@ -165,9 +173,7 @@ class OpenAI_JSON:
         # Step 5: Apply heuristic processing
         try:
             self.data_manager.add_result(
-                self.heuristic_processor.process(
-                    self.data_manager.get_current_unmatched()
-                )
+                self.heuristic_processor.process(self.data_manager.unmatched)
             )
 
             self.logger.info("Heuristic processing completed.")
@@ -175,30 +181,26 @@ class OpenAI_JSON:
             self.logger.error("Heuristic processing failed: %s", e)
             return {"error": f"Heuristic processing failed: {str(e)}"}
 
-        self.substructure_manager.store_unmatched_data(unmatched_data)
-        self.substructure_manager.store_error_data(errors)
-
         # Step 6: Process unmatched data with ML
-        unmatched_data = self.substructure_manager.retrieve_unmatched_data()
-        transformed_data = self.ml_processor.predict_transformations(unmatched_data)
-        self.logger.info("ML processing completed.")
-        self.logger.debug("Transformed data: %s", transformed_data)
-        self.substructure_manager.reconcile_transformed_data(transformed_data)
+        try:
+            self.data_manager.add_result(
+                self.ml_processor.process(self.data_manager.unmatched)
+            )
+            self.logger.info("ML processing completed.")
+        except Exception as e:
+            self.logger.error("Machine Learning processing failed: %s", e)
+            return {"error": f"Machine Learning processing failed: {str(e)}"}
 
         # Step 7: Assemble the final output
-        final_output = self.output_assembler.assemble_output(
-            processed_data,
-            transformed_data,
-            self.substructure_manager.retrieve_unmatched_data(),
-            self.substructure_manager.retrieve_error_data(),  # Retrieve errors here
-        )
+        final_output = self.data_manager.finalize_output()
         self.logger.info("Final output assembled.")
 
         # Step 8: Extract and store auxiliary information
-        self.unmatched_data = final_output.pop("unmatched_data")
-        self.errors = final_output.pop("error")
-        final_output = final_output.get("processed_data", {})
+        self.unmatched_data = self.data_manager.unmatched
+        self.errors = self.data_manager.errors
 
         # Step 9: Return the output!
-        self.logger.debug("Final output: %s", final_output)
+        self.logger.debug(
+            "Final output: %s", json.dumps(final_output, indent=1, sort_keys=True)
+        )
         return final_output

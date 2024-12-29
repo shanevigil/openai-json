@@ -56,11 +56,16 @@ class MachineLearningProcessor:
         errors = []
         remaining_unmatched_data = {}  # To track unmatched response items
 
-        for key, value in unmatched_data.items():  # Iterate through the input unmatched data
+        for (
+            key,
+            value,
+        ) in unmatched_data.items():  # Iterate through the input unmatched data
             try:
                 # Process each item against the current unmatched schema
                 unmatched_data_item = {key: value}
-                transformed_item = self._process_item(unmatched_data_item, unmatched_schema)
+                transformed_item = self._process_item(
+                    unmatched_data_item, unmatched_schema
+                )
 
                 if transformed_item:
                     # Add matches to processed_data
@@ -78,16 +83,16 @@ class MachineLearningProcessor:
 
         self.logger.info("Processing pipeline completed.")
         self.logger.debug("Processed data: %s", processed_data)
-        self.logger.debug("Remaining unmatched response data: %s", remaining_unmatched_data)
+        self.logger.debug(
+            "Remaining unmatched response data: %s", remaining_unmatched_data
+        )
         self.logger.debug("Errors: %s", errors)
 
         return ResultData(
             matched=processed_data,
             unmatched=remaining_unmatched_data,  # Remaining unmatched response items
-            errors=errors
+            errors=errors,
         )
-
-
 
     def _process_item(self, unmatched_data_item: dict, schema: dict) -> dict:
         self.logger.info("Processing individual item.")

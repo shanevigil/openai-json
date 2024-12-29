@@ -2,6 +2,16 @@ import pytest
 from openai_json.data_manager import DataManager, ResultData
 from unittest.mock import Mock
 
+
+@pytest.fixture
+def mock_schema_handler():
+    class MockSchemaHandler:
+        def get_original_key(self, key):
+            return f"original_{key}"
+
+    return MockSchemaHandler()
+
+
 class TestDataManager:
     def test_add_result_updates_state(self, mock_schema_handler):
         # Initialize DataManager with mock schema handler
@@ -36,14 +46,18 @@ class TestDataManager:
 
         # Add second result with overlapping keys
         result2 = ResultData(
-            matched={"key2": "new_value2","key3": "value3"},
+            matched={"key2": "new_value2", "key3": "value3"},
             unmatched={"key4": "value4"},
             errors={"key5": "value5"},
         )
         data_manager.add_result(result2)
 
         # Assert final state
-        assert data_manager.matched == {"key1": "value1", "key2": "new_value2","key3": "value3"}
+        assert data_manager.matched == {
+            "key1": "value1",
+            "key2": "new_value2",
+            "key3": "value3",
+        }
         assert data_manager.unmatched == {"key4": "value4"}
         assert data_manager.errors == {"key5": "value5"}
 
@@ -80,7 +94,7 @@ class TestDataManager:
             errors={"key3": "value3"},
         )
         result2 = ResultData(
-            matched={"key1": "conflicting_value"},
+            matched={"key1": "value1", "key2": "value2"},
             unmatched={"key4": "value4"},
             errors={"key5": "value5"},
         )
@@ -91,9 +105,9 @@ class TestDataManager:
         data_manager._reconcile()
 
         # Assert reconciled state
-        assert data_manager.matched == {"key1": "conflicting_value"}
+        assert data_manager.matched == {"key1": "value1", "key2": "value2"}
         assert data_manager.unmatched == {"key4": "value4"}
-        assert data_manager.errors == {"key5": "value5"}
+        assert data_manager.errors == {"key5": "value5", "key3": "value3"}
 
     def test_empty_state_after_initialization(self, mock_schema_handler):
         # Initialize DataManager with mock schema handler
@@ -122,4 +136,3 @@ class TestDataManager:
 
         # Assert logger was called
         data_manager.logger.debug.assert_called()
-

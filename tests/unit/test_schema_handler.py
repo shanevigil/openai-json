@@ -1,6 +1,7 @@
 import pytest
 from openai_json.schema_handler import SchemaHandler
 from datetime import datetime
+import json
 
 
 def test_submit_valid_schema():
@@ -385,3 +386,60 @@ def test_extract_prompts_no_prompts_with_custom_prefix():
     prompts = handler.extract_prompts(prefix=custom_prefix)
 
     assert prompts == "", f"Expected no prompts but got: {prompts}"
+
+
+def test_generate_example_json():
+    """Test SchemaHandler's generate_example_json method for various schemas."""
+
+    # Test cases: (schema, expected output)
+    test_cases = [
+        (
+            # Basic schema
+            {
+                "name": {"type": "string"},
+                "age": {"type": "integer"},
+                "is_active": {"type": "boolean"},
+            },
+            {
+                "name": "example string",
+                "age": 123,
+                "is_active": True,
+            },
+        ),
+        (
+            # Schema with unsupported types and nested object
+            {
+                "details": {"type": "object"},
+                "score": {"type": "unknown"},
+            },
+            {
+                "details": {},
+                "score": None,
+            },
+        ),
+        (
+            # Schema with an array and nested objects
+            {
+                "tags": {"type": "array"},
+                "profile": {"type": "object"},
+                "profile.name": {"type": "string"},
+            },
+            {
+                "tags": [],
+                "profile": {"name": "example string"},
+            },
+        ),
+    ]
+
+    for idx, (schema, expected) in enumerate(test_cases):
+        # Initialize SchemaHandler with the test schema
+        schema_handler = SchemaHandler(schema)
+
+        # Generate example JSON
+        example_json_string = schema_handler.generate_example_json()
+
+        # Convert the JSON string to a dictionary for comparison
+        example_json = json.loads(example_json_string)
+
+        # Assert that the example JSON matches the expected output
+        assert example_json == expected, f"Test case {idx + 1} failed!"

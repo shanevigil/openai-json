@@ -11,7 +11,7 @@ license = {text = "MIT"}
 authors = [
     {name = "Shane Vigil", email = "savigil@gmail.com"}
 ]
-keywords = ["openai", "json", "OpenAI_JSON", "schema", "machine-learning", "api"]
+keywords = ["openai", "json", "OpenAI_JSON",]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",

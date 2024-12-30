@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name="openai-json",
-    version="0.1.0",
-    description="A Python OpenAI_JSON for processing and structuring JSON responses from the OpenAI API.",
+    version="1.0.0",
+    description="A Python library for processing and structuring JSON responses from the OpenAI API.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Shane Vigil",
     author_email="savigil@gmail.com",
-    url="https://github.com/shanevigil/openai-json",  # TODO Add my username
+    url="https://github.com/shanevigil/openai-json",
     license="MIT",
     packages=find_packages(where="openai_json"),
     package_dir={"": "openai_json"},
@@ -27,7 +27,7 @@ setup(
         "linting": ["flake8", "mypy"],
         "gpu": [
             "torch==2.0.1+cu117 ; platform_system=='Linux'"
-        ],  # Optional CUDA support
+        ],
     },
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -36,9 +36,9 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    keywords="openai json OpenAI_JSON schema machine-learning api",
+    keywords="openai json schema machine-learning api",
     project_urls={
-        "Bug Tracker": "https://github.com/shanevigil/openai-json/issues",  # TODO Add my username
-        "Source Code": "https://github.com/shanevigil/openai-json",  # TODO Add my username
+        "Bug Tracker": "https://github.com/shanevigil/openai-json/issues",
+        "Source Code": "https://github.com/shanevigil/openai-json",
     },
 )

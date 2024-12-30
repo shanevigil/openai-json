@@ -1,5 +1,5 @@
 # Core dependencies
-jsonschema==4.23.0          # For schema validation
+jsonschema==4.23.0           # For schema validation
 openai==1.58.1              # For OpenAI API interactions
 word2number==1.1            # For converting numbers in word format
 rapidfuzz==3.11.0           # For fuzzy string matching
@@ -16,7 +16,7 @@ safetensors==0.4.5          # Lightweight tensor serialization (transformers dep
 # Development and Testing
 flake8==7.1.1               # For linting
 pytest==8.3.4               # For testing
-pytest-asyncio==8.3.4       # For Async testing
+pytest-asyncio==0.25.0      # For async testing
 
 # Documentation
 Sphinx==7.4.7               # For documentation

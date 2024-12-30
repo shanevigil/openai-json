@@ -82,18 +82,47 @@ schema = {
 }
 
 client = OpenAI_JSON(gpt_api_key=api_key, schema=schema)
-response = client.handle_request("Provide information about a user.")
+response = client.request("Provide information about a user.")
 
 print("Structured Output:", response)
 print("Unmatched Data:", client.unmatched_data)  # Data not aligning with the schema
 print("Errors:", client.errors)  # Coercion failures or unexpected issues
 ```
 
-#### Generating Outputs with Prompts
-
-You can add field-specific prompts to your schema using `extract_prompts`. For instance:
+##### Async Example
 
 ```python
+import asyncio
+from openai_json.openai_json import OpenAI_JSON
+
+async def async_example():
+    api_key = "your-api-key"
+    schema = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "age": {"type": "integer"},
+            "email": {"type": "string"}
+        },
+        "required": ["name", "email"]
+    }
+
+    client = OpenAI_JSON(gpt_api_key=api_key, schema=schema)
+
+    response = await client.async_request("Provide information about a user.")
+    print("Structured Output:", response)
+    print("Unmatched Data:", client.unmatched_data)  # Data not aligning with the schema
+    print("Errors:", client.errors)  # Coercion failures or unexpected issues
+
+asyncio.run(async_example())
+```
+
+##### Using SchemaHandler with Field Prompts
+You can add field-specific prompts to your schema which openai-json will automatically include in the query to ChatGPT. If you are curious to see how they are formatted, you can use the extract_prompts() method, however, it is not required for you to use this method when running a request.
+
+```python
+from openai_json.schema_handler import SchemaHandler
+
 schema_with_prompts = {
     "type": "object",
     "properties": {
@@ -104,32 +133,6 @@ schema_with_prompts = {
 
 handler = SchemaHandler(schema_with_prompts)
 print(handler.extract_prompts())
-```
-
-#### Handling API Queries
-
-```python
-from openai_json.openai_json import OpenAI_JSON
-
-api_key = "your-api-key"
-schema = {
-    "name": {"type": "string"},
-    "age": {"type": "integer"},
-    "email": {"type": "string"}
-}
-
-client = OpenAI_JSON(gpt_api_key=api_key, schema=schema)
-response = client.handle_request("Provide information about a user.")
-print("Structured Output:", response)
-```
-
-#### Modifying Default Prefix for Prompts
-
-The default prefix for schema prompts can be customized:
-
-```python
-handler = SchemaHandler(schema_with_prompts)
-print(handler.extract_prompts(prefix="User data collection:")
 ```
 
 ---
@@ -221,8 +224,6 @@ We welcome contributions to improve the package! To contribute:
 2. Make your changes and write tests.
 3. Submit a pull request.
 
-Please review the contributing guidelines for detailed instructions.
-
 ---
 
 ## License
@@ -233,5 +234,5 @@ This project is licensed under the MIT License. See the `LICENSE` file for detai
 
 ## Contact
 
-For questions or support, please open an issue on [GitHub](https://github.com/yourusername/openai-json).
+For questions or support, please open an issue on [GitHub](https://github.com/shanevigil/openai-json).
 

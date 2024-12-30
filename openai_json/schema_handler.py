@@ -4,6 +4,14 @@ from jsonschema import Draft7Validator, validate, ValidationError, exceptions
 import re
 
 
+class SchemaNotSubmittedError(Exception):
+    """
+    Raised when a schema-dependent operation is called before submitting a schema.
+    """
+
+    pass
+
+
 class SchemaHandler:
     """
     Manages schemas for JSON responses, including submission and validation.
@@ -12,7 +20,9 @@ class SchemaHandler:
     and ensuring that data conforms to the specified structure.
 
     Attributes:
-        schema (dict): The current schema used for validation.
+        original_schema (dict): User-submitted schema with original keys.
+        normalized_schema (dict): Normalized schema for processing.
+        key_mapping (dict): Maps normalized keys back to their original forms.
     """
 
     python_type_mapping = {
@@ -83,6 +93,19 @@ class SchemaHandler:
         # Normalize schema for Python-specific processing
         self.normalized_schema = self._normalize_schema(schema)
 
+    def _ensure_schema_submitted(self):
+        """
+        Ensures that a schema has been submitted. Raises an error if not.
+
+        Raises:
+            SchemaNotSubmittedError: If no schema has been submitted.
+        """
+        if not self.normalized_schema:
+            self.logger.error("Schema not submitted.")
+            raise SchemaNotSubmittedError(
+                "Schema must be submitted before calling this method."
+            )
+
     def generate_example_json(self) -> str:
         """
         Generates an example JSON string based on the normalized schema.
@@ -90,9 +113,7 @@ class SchemaHandler:
         Returns:
             str: A JSON-formatted string representing an example output.
         """
-        if not self.normalized_schema:
-            self.logger.debug("No normalized schema available for example generation.")
-            return "{}"
+        self._ensure_schema_submitted()
 
         example = {}
         for key, details in self.normalized_schema.items():
@@ -158,9 +179,7 @@ class SchemaHandler:
         Returns:
             str: A formatted string of field prompts, prefixed by the provided string.
         """
-        if not self.normalized_schema:
-            self.logger.debug("No normalized schema available.")
-            return ""
+        self._ensure_schema_submitted()
 
         self.logger.debug(
             "Starting prompt extraction. Normalized schema: %s", self.normalized_schema
@@ -202,9 +221,7 @@ class SchemaHandler:
         Raises:
             ValueError: If no schema has been submitted.
         """
-        if not self.normalized_schema:  # Use normalized_schema instead of schema
-            self.logger.error("No schema has been submitted. Cannot validate data.")
-            raise ValueError("No schema has been submitted.")
+        self._ensure_schema_submitted()
 
         self.logger.debug("Validating data against the schema: %s", data)
         normalized_data = {self.normalize_text(k): v for k, v in data.items()}
@@ -235,6 +252,7 @@ class SchemaHandler:
         Returns:
             str: The original key or the normalized key if no mapping exists.
         """
+        self._ensure_schema_submitted()
         return self.key_mapping.get(normalized_key, normalized_key)
 
     def get_type_from_field(self, field: dict or str):
@@ -242,21 +260,25 @@ class SchemaHandler:
         Retrieves the expected Python type from a schema field definition.
 
         Args:
-            field (dict or str): The field definition in the schema. Can be a dict with a "type" key or a shorthand type string.
+            field (dict or str): The field definition in the schema. Can be a dict with 
+                a "type" key or a shorthand type string.
 
         Returns:
-            type or None: The Python type corresponding to the schema field, or None if the type is undefined.
+            type or None: The Python type corresponding to the schema field, or None 
+                if the type is undefined.
 
         Example:
             python_type_reverse_mapping = {
-                "string": str,
-                "number": float,
-                "integer": int
+            "string": str,
+            "number": float,
+            "integer": int
             }
             field = {"type": "string"}
             >>> schema_handler.get_type_from_field(field)
             <class 'str'>
         """
+
+
         self.logger.debug("Field definition passed to get_type_from_field: %s", field)
 
         if isinstance(field, dict) and "type" in field:
@@ -293,15 +315,16 @@ class SchemaHandler:
 
         Example:
             schema = {
-                "name": {"type": "string"},
-                "age": {"type": "number"},
-                "tags": {"type": "list", "items": {"type": "string"}}
+            "name": {"type": "string"},
+            "age": {"type": "number"},
+            "tags": {"type": "list", "items": {"type": "string"}}
             }
             >>> schema_handler.get_field_expected_type("name")
             <class 'str'>
             >>> schema_handler.get_field_expected_type("tags.items")
             <class 'str'>
         """
+        self._ensure_schema_submitted()
         # Check if the key directly exists in the schema
         field_definition = self.normalized_schema.get(key)
         if field_definition:
@@ -374,6 +397,7 @@ class SchemaHandler:
             >>> print(handler.normalized_schema)
             {"type": "object", "properties": {"new_field": {"type": "integer"}}}
         """
+        self._ensure_schema_submitted()
         if not isinstance(field_name, str) or not isinstance(field_schema, dict):
             raise ValueError("Invalid field name or schema. Expected (str, dict).")
         normalized_key = self.normalize_text(field_name)
@@ -414,10 +438,8 @@ class SchemaHandler:
                 "changed": {"field1": ({"type": "string"}, {"type": "integer"})}
             }
         """
-        if not self.original_schema:
-            raise ValueError(
-                "No schema has been submitted yet. Cannot compare schemas."
-            )
+        self._ensure_schema_submitted()
+
         if not isinstance(new_schema, dict):
             raise ValueError("Invalid schema format. Expected a dictionary.")
 
@@ -480,6 +502,7 @@ class SchemaHandler:
         Returns:
             dict: Data with keys mapped back to their original forms.
         """
+        self._ensure_schema_submitted()
 
         def transform_field(field):
             if isinstance(field, dict):

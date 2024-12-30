@@ -1,5 +1,6 @@
 import pytest
 from openai_json.openai_json import OpenAI_JSON
+from unittest.mock import MagicMock, AsyncMock
 
 
 @pytest.fixture
@@ -37,8 +38,8 @@ def test_OpenAI_JSON_valid(mock_openai_client, expected_messages):
     client = OpenAI_JSON(gpt_api_key="mock-api-key")
     client.api_client = sync_mock_client
 
-    # Run the handle_request method
-    response = client.handle_request(query, schema)
+    # Run the request method
+    response = client.request(query, schema)
 
     # Assertions for the response
     assert response == {
@@ -64,7 +65,7 @@ def test_OpenAI_JSON_with_unmatched_data(mock_openai_client, expected_messages):
     client = OpenAI_JSON(gpt_api_key="mock-api-key")
     client.api_client = sync_mock_client
 
-    response = client.handle_request(query, schema)
+    response = client.request(query, schema)
 
     assert response == {"First Name": "Alice", "Age": 25}
     assert client.unmatched_data == {"extra": "unexpected"}
@@ -91,8 +92,8 @@ def test_OpenAI_JSON_with_errors(mock_openai_client, expected_messages):
     client = OpenAI_JSON(gpt_api_key="mock-api-key")
     client.api_client = sync_mock_client
 
-    # Run the handle_request method
-    response = client.handle_request(query, schema)
+    # Run the request method
+    response = client.request(query, schema)
 
     # Assertions for the response
     assert response == {
@@ -141,8 +142,8 @@ def test_OpenAI_JSON_with_system_message(mock_openai_client, schema_handler):
     client = OpenAI_JSON(gpt_api_key="mock-api-key", schema=schema)
     client.api_client = sync_mock_client
 
-    # Run the handle_request method
-    response = client.handle_request(query, schema)
+    # Run the request method
+    response = client.request(query, schema)
 
     # Verify the API was called with the expected payload
     sync_mock_client.chat.completions.create.assert_called_once()
@@ -168,3 +169,43 @@ def test_OpenAI_JSON_with_system_message(mock_openai_client, schema_handler):
         "age": 30,
         "email": "alice@example.com",
     }
+
+
+@pytest.mark.asyncio
+async def test_openai_json_async_request(mock_openai_client):
+    """Test asynchronous functionality of OpenAI_JSON."""
+    _, async_mock_client, set_mock_response, _ = mock_openai_client
+
+    # Set a valid mock response
+    mock_response = '{"name": "Alice", "age": 25}'
+    set_mock_response(mock_response)
+
+    schema = {"name": {"type": "string"}, "age": {"type": "integer"}}
+    query = "Generate a JSON object with name and age."
+
+    # Create OpenAI_JSON instance
+    client = OpenAI_JSON(gpt_api_key="mock-api-key")
+    client.async_api_interface = async_mock_client  # Use the mocked async client
+
+    # Mock chat.completions.create to simulate async behavior
+    async_mock_client.chat.completions.create = AsyncMock(
+        return_value=MagicMock(
+            choices=[MagicMock(message=MagicMock(content=mock_response))]
+        )
+    )
+
+    # Mock send_query to await chat.completions.create
+    async def mock_send_query(full_query):
+        response = await async_mock_client.chat.completions.create(
+            model="gpt-4", messages=[], temperature=0
+        )
+        return response.choices[0].message.content
+
+    async_mock_client.send_query = mock_send_query
+
+    # Perform an async request
+    response = await client.async_request(query, schema=schema)
+
+    # Assertions
+    assert response == {"name": "Alice", "age": 25}
+    async_mock_client.chat.completions.create.assert_called_once()

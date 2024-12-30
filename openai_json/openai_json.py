@@ -2,9 +2,10 @@ import logging
 import json
 from openai_json.schema_handler import SchemaHandler
 from openai_json.data_manager import DataManager, ResultData
-from openai_json.api_interface import APIInterface
+from openai_json.api_interface import APIInterface, AsyncAPIInterface
 from openai_json.heuristic_processor import HeuristicProcessor
 from openai_json.ml_processor import MachineLearningProcessor
+import asyncio
 
 
 class OpenAI_JSON:
@@ -20,12 +21,12 @@ class OpenAI_JSON:
     structured JSON handling.
 
     Attributes:
-        schema_handler (SchemaHandler): Manages schema submission and validation.
-        api_interface (APIInterface): Handles interactions with the OpenAI API.
-        heuristic_processor (HeuristicProcessor): Processes data using heuristic rules.
-        substructure_manager (SubstructureManager): Stores unmatched keys and their data.
-        output_assembler (OutputAssembler): Combines processed and transformed data.
-        ml_processor (MachineLearningProcessor): Predicts schema-compliant transformations.
+        schema_handler (SchemaHandler): Manages schema validation and normalization.
+        api_interface (APIInterface): For synchronous API interactions.
+        async_api_interface (AsyncAPIInterface): For asynchronous API interactions.
+        heuristic_processor (HeuristicProcessor): Applies heuristic rules to process JSON.
+        ml_processor (MachineLearningProcessor): Applies ML transformations to unmatched data.
+        data_manager (DataManager): Manages and consolidates processing results.
     """
 
     def __init__(
@@ -85,126 +86,142 @@ class OpenAI_JSON:
         self.logger = logging.getLogger(__name__)
         self.logger.info("Initializing OpenAI_JSON with OpenAI API and ML components.")
 
+        self.gpt_api_key = gpt_api_key
+        self.gpt_model = gpt_model
+        self.gpt_temperature = gpt_temperature
+
         self.schema_handler = SchemaHandler(schema)
+        if schema:
+            self._init_apis()
 
-        self.example_json_string = self.schema_handler.generate_example_json()
-        system_message = f"Respond in valid JSON format. Use the following example JSON as a reference:\n{self.example_json_string}"
-
-        self.api_interface = APIInterface(
-            gpt_api_key,
-            model=gpt_model,
-            temperature=gpt_temperature,
-            system_message=system_message,
-        )
         self.heuristic_processor = HeuristicProcessor(self.schema_handler)
         self.ml_processor = MachineLearningProcessor(self.schema_handler)
         self.data_manager = DataManager(self.schema_handler)
 
-        self.unmatched_data = []
-        self.errors = []
+        self.unmatched_data = {}
+        self.errors = {}
         self.validation_error = None
 
         self.logger.info("OpenAI_JSON initialization complete.")
 
-    def handle_request(self, query: str, schema: dict) -> dict:
+    def _init_apis(self):
+        self.example_json_string = self.schema_handler.generate_example_json()
+        system_message = f"Respond in valid JSON format. Use the following example JSON as a reference:\n{self.example_json_string}"
+
+        self.api_interface = APIInterface(
+            self.gpt_api_key,
+            model=self.gpt_model,
+            temperature=self.gpt_temperature,
+            system_message=system_message,
+        )
+        self.async_api_interface = AsyncAPIInterface(
+            self.gpt_api_key,
+            model=self.gpt_model,
+            temperature=self.gpt_temperature,
+            system_message=system_message,
+        )
+
+    def request(self, query: str, schema: dict = None) -> dict:
         """
-        Processes a query end-to-end: sends the query to the OpenAI API, validates and processes
-        the response, and assembles a schema-compliant output.
+        Sends a query to the OpenAI API and processes the response synchronously.
 
         Args:
-            query (str): The query string to send to the OpenAI API.
-            schema (dict): The schema dict defining the expected JSON structure.
+            query (str): The query to send.
+            schema (dict, optional): Schema for response validation.
 
         Returns:
-            dict: The final schema-compliant JSON response, or an error dictionary if processing fails.
+            dict: Schema-compliant response or error details.
 
         Workflow:
             1. Submit the schema for validation.
             2. Extract prompts and append them to the query.
             3. Send the query to the OpenAI API and retrieve the raw response.
             4. Parse the raw response into JSON format.
-            5. Apply heuristic rules to align data with the schema.
+            5. Apply heuristic rules to align data with the schema, using data-type coercion where possible.
             6. Identify and store unmatched keys using SubstructureManager.
             7. Use MachineLearningProcessor to predict transformations for unmatched data.
             8. Combine processed and transformed data into the final output.
         """
-        self.logger.info("Starting request handling.")
-        self.logger.debug("Query: %s", query)
-        self.logger.debug("Schema: %s", schema)
 
-        # Step 1: Submit schema
-        try:
-            self.schema_handler.submit_schema(schema)
-            self.logger.info("Schema submitted successfully.")
-        except ValueError as e:
-            self.logger.error("Schema submission failed: %s", e)
-            return {"error": f"Schema error: {str(e)}"}
+        full_query = self._prepare_query(query, schema)
 
-        # Step 2: Extract prompts and append to query
         try:
+            raw_response = self.api_interface.send_query(full_query)
+            return self._process_response(raw_response)
+
+        except Exception as e:
+            self.logger.error("Synchronous request failed: %s", e)
+            return {}
+
+    async def async_request(self, query: str, schema: dict = None) -> dict:
+        """
+        Sends a query to the OpenAI API and processes the response asynchronously.
+
+        Args:
+            query (str): The query to send.
+            schema (dict, optional): Schema for response validation.
+
+        Returns:
+            dict: Schema-compliant response or error details.
+
+        Workflow:
+            1. Submit the schema for validation.
+            2. Extract prompts and append them to the query.
+            3. Send the query to the OpenAI API and retrieve the raw response.
+            4. Parse the raw response into JSON format.
+            5. Apply heuristic rules to align data with the schema, using data-type coercion where possible.
+            6. Identify and store unmatched keys using SubstructureManager.
+            7. Use MachineLearningProcessor to predict transformations for unmatched data.
+            8. Combine processed and transformed data into the final output.
+        """
+        full_query = self._prepare_query(query, schema)
+
+        try:
+            raw_response = await self.async_api_interface.send_query(full_query)
+            return self._process_response(raw_response)
+
+        except Exception as e:
+            self.logger.error("Asynchronous request failed: %s", e)
+            return {}
+
+    def _prepare_query(self, query: str, schema: dict = None) -> str:
+        """
+        Prepare the full query with prompts and example JSON.
+        """
+        try:
+            if schema:
+                self.schema_handler.submit_schema(schema)
+                self._init_apis()
             prompts_string = self.schema_handler.extract_prompts()
             query_with_prompts = f"{query}\n\n{prompts_string}"
             instructions_string = (
                 "\n\nPlease ensure the response adheres to the following schema:\n"
             )
-            full_query = (
+            return (
                 f"{query_with_prompts}{instructions_string}{self.example_json_string}"
             )
-            self.logger.debug("The Full query is: %s", full_query)
         except Exception as e:
-            self.logger.error("Failed to extract prompts: %s", e)
-            return {"error": f"Prompt extraction failed: {str(e)}"}
+            raise ValueError(f"Failed to prepare query: {e}")
 
-        # Step 3: Send query to OpenAI API
+    def _process_response(self, response: str) -> dict:
+        """
+        Process the raw response from OpenAI.
+        """
         try:
-            raw_response = self.api_interface.send_query(full_query)
-            self.logger.info("Received raw response from OpenAI API.")
-        except RuntimeError as e:
-            self.logger.error("Failed to fetch response from OpenAI API: %s", e)
-            return {"error": f"Failed to fetch response: {str(e)}"}
-
-        # Step 4: Parse the response
-        try:
-            parsed_response = json.loads(raw_response)
-            self.logger.debug("Parsed JSON response: %s", parsed_response)
-        except json.JSONDecodeError as e:
-            self.logger.error("Failed to parse JSON response: %s", e)
-            return {"error": f"Failed to parse JSON response: {str(e)}"}
-
-        # Step 5: Add the parsed response
-        self.data_manager.add_result(ResultData(unmatched=parsed_response))
-
-        # Step 5: Apply heuristic processing
-        try:
+            parsed_response = json.loads(response)
+            self.data_manager.add_result(ResultData(unmatched=parsed_response))
             self.data_manager.add_result(
                 self.heuristic_processor.process(self.data_manager.unmatched)
             )
-
-            self.logger.info("Heuristic processing completed.")
-        except Exception as e:
-            self.logger.error("Heuristic processing failed: %s", e)
-            return {"error": f"Heuristic processing failed: {str(e)}"}
-
-        # Step 6: Process unmatched data with ML
-        try:
             self.data_manager.add_result(
                 self.ml_processor.process(self.data_manager.unmatched)
             )
-            self.logger.info("ML processing completed.")
+            final_output = self.data_manager.finalize_output()
+
+            self.unmatched_data = self.data_manager.unmatched
+            self.errors = self.data_manager.errors
+            return final_output
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse JSON response: {e}")
         except Exception as e:
-            self.logger.error("Machine Learning processing failed: %s", e)
-            return {"error": f"Machine Learning processing failed: {str(e)}"}
-
-        # Step 7: Assemble the final output
-        final_output = self.data_manager.finalize_output()
-        self.logger.info("Final output assembled.")
-
-        # Step 8: Extract and store auxiliary information
-        self.unmatched_data = self.data_manager.unmatched
-        self.errors = self.data_manager.errors
-
-        # Step 9: Return the output!
-        self.logger.debug(
-            "Final output: %s", json.dumps(final_output, indent=1, sort_keys=True)
-        )
-        return final_output
+            raise RuntimeError(f"Processing failed: {e}")

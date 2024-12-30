@@ -51,27 +51,6 @@ def mock_openai_client(monkeypatch):
     )
 
 
-# @pytest.fixture
-# def mock_openai_client():
-#     """Fixture to mock the OpenAI client and its response."""
-#     with patch("openai_json.api_interface.OpenAI") as MockOpenAI:
-#         # Create a mock client instance
-#         mock_client = MagicMock()
-#         MockOpenAI.return_value = mock_client
-
-#         # Provide a way to set the mock response dynamically
-#         def set_mock_response(mock_content):
-#             mock_response = MagicMock()
-#             mock_response.choices = [MagicMock(message=MagicMock(content=mock_content))]
-#             mock_client.chat.completions.create.return_value = mock_response
-
-#         # Base system message; updated in tests as needed
-#         expected_system_message_base = "Respond in valid JSON format."
-
-#         # Return the mock client and helper functions
-#         yield mock_client, set_mock_response, expected_system_message_base
-
-
 @pytest.fixture
 def schema_handler():
     """Fixture to provide a fresh instance of SchemaHandler."""

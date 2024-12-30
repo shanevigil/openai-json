@@ -12,6 +12,14 @@ openai\_json.api\_interface module
    :undoc-members:
    :show-inheritance:
 
+openai\_json.data\_manager module
+---------------------------------
+
+.. automodule:: openai_json.data_manager
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 openai\_json.heuristic\_processor module
 ----------------------------------------
 
@@ -36,26 +44,10 @@ openai\_json.openai\_json module
    :undoc-members:
    :show-inheritance:
 
-openai\_json.output\_assembler module
--------------------------------------
-
-.. automodule:: openai_json.output_assembler
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 openai\_json.schema\_handler module
 -----------------------------------
 
 .. automodule:: openai_json.schema_handler
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-openai\_json.substructure\_manager module
------------------------------------------
-
-.. automodule:: openai_json.substructure_manager
    :members:
    :undoc-members:
    :show-inheritance:

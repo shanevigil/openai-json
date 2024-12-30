@@ -4,6 +4,15 @@ import logging
 
 
 class ResultData:
+    """
+    Data container for processing results, tracking matched, unmatched, and error records.
+
+    Attributes:
+        matched (dict): Successfully matched data.
+        unmatched (dict): Data that failed to match.
+        errors (dict): Records with errors during processing.
+    """
+
     def __init__(self, matched=None, unmatched=None, errors=None):
         self.matched = matched or {}
         self.unmatched = unmatched or {}
@@ -16,12 +25,23 @@ class ResultData:
             value = {k: v for d in value for k, v in d.items()}
         super().__setattr__(name, value)
 
-    def _merge(self, rd):
+    def _merge(self, first_result, second_result):
         # TODO implement ability to merge two ResultData Objects
+        # TODO make sure that the second result's matched data takes priority over the first result's errors and unmatched data
         return self
 
 
 class DataManager:
+    """
+    Manages data processing results, including updates and final output assembly.
+
+    Attributes:
+        schema (SchemaHandler): Schema handler for validation and key mapping.
+        results (list): List of ResultData objects.
+        matched (dict): Dictionary of matched results.
+        unmatched (dict): Dictionary of unmatched results.
+        errors (dict): Dictionary of errors encountered during processing.
+    """
 
     def __init__(self, schema_handler: SchemaHandler):
         self.schema = schema_handler
@@ -32,13 +52,28 @@ class DataManager:
         self.logger = logging.getLogger(__name__)
 
     def add_result(self, result_data: ResultData):
-        """Add a new ResultData object and reconcile it."""
+        """
+        Adds a new ResultData object and reconciles the current state.
+
+        Args:
+            result_data (ResultData): The new result data to add.
+        """
+
         self.logger.info("Appending result data.")
         self.results.append(result_data)
         self._update()
 
     def finalize_output(self, reconcile: bool = False) -> dict:
-        """Perform a final reconciliation and map keys back to the original schema."""
+        """
+        Finalize and map processed data back to the original schema.
+
+        Args:
+            reconcile (bool): Whether to reconcile all results before finalizing.
+
+        Returns:
+            dict: Mapped output compliant with the schema.
+        """
+
         if reconcile:
             self._reconcile()
 

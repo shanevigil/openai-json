@@ -9,10 +9,14 @@ from openai_json.data_manager import ResultData
 
 class MachineLearningProcessor:
     """
-    Uses a trained machine learning model to handle unmatched keys or structures.
+    Uses machine learning models to align unmatched data with a schema.
 
-    This class predicts schema-compliant transformations for unmatched keys
-    and values using a pre-trained machine learning model.
+    Attributes:
+        schema_handler (SchemaHandler): Manages schema validation and type mappings.
+        tokenizer (AutoTokenizer): Tokenizer for BERT-based models.
+        model (AutoModel): Pre-trained BERT model for text embeddings.
+        misspelling_threshold (int): Similarity threshold for identifying misspellings.
+        synonym_threshold (float): Similarity threshold for synonym detection.
     """
 
     def __init__(self, schema_handler: SchemaHandler):
@@ -34,14 +38,15 @@ class MachineLearningProcessor:
 
     def process(self, unmatched_data: dict) -> ResultData:
         """
-        Processes the given data to align it with the schema.
+        Processes unmatched data and predicts schema-aligned transformations.
 
         Args:
-            unmatched_data (dict): The JSON response data to be matched.
+            unmatched_data (dict): Data that did not match the schema.
 
         Returns:
-            ResultData: An object containing processed data, remaining unmatched response keys, and errors.
+            ResultData: Processed data with matched, unmatched, and error details.
         """
+
         self.logger.info("Starting ML processing pipeline.")
         self.logger.debug("Initial unmatched data: %s", unmatched_data)
 
@@ -53,7 +58,7 @@ class MachineLearningProcessor:
 
         unmatched_schema = dict(schema)  # Mutable copy of schema's unmatched keys
         processed_data = {}
-        errors = []
+        errors = {}
         remaining_unmatched_data = {}  # To track unmatched response items
 
         for (
@@ -127,7 +132,7 @@ class MachineLearningProcessor:
             return synonym_matched
 
         # Step 3: Perform contextual key matching if schema is rich
-        # TODO Implement contextual matching
+        # TODO Implement contextual matching for instruction and response e.g. SBERT
         # if self._is_rich_schema(schema):
         #     self.logger.info("Step 3: Performing contextual key matching...")
         #     contextual_matched = self._predict_contextual_matching(

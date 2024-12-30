@@ -28,14 +28,15 @@ class HeuristicProcessor:
 
     def process(self, data: dict) -> tuple:
         """
-        Processes the given data to align it with the schema.
+        Processes the provided JSON data using heuristic rules.
 
         Args:
-            data (dict): The JSON response data.
+            data (dict): JSON data to process.
 
         Returns:
-            ResultData: A openai_json.data_manager ResultData object.
+            ResultData: Object containing matched, unmatched, and error records.
         """
+
         self.logger.debug("Starting heuristic processing for data: %s", data)
 
         schema = self.schema_handler.normalized_schema
@@ -375,7 +376,7 @@ class HeuristicProcessor:
                     "Running coercion on: '%s' expected type: %s",
                     item,
                     expected_type,
-                )  # TODO: Delete after debugging
+                )
                 if isinstance(item, str):
 
                     # Try standard numeric conversion

@@ -34,10 +34,10 @@ def get_field_definition(schema: dict, normalized_key: str):
 
     Example:
         schema = {
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "number"}
-            }
+        "properties": {
+        "name": {"type": "string"},
+        "age": {"type": "number"}
+        }
         }
         >>> get_field_definition(schema, "name")
         {'type': 'string'}

@@ -1,5 +1,5 @@
 import pytest
-from openai_json.schema_handler import SchemaHandler
+from openai_json.schema_handler import SchemaHandler, SchemaNotSubmittedError
 from datetime import datetime
 import json
 
@@ -275,7 +275,8 @@ def test_diff_schema_no_existing_schema():
     handler = SchemaHandler()
     new_schema = {"type": "object", "properties": {"field1": {"type": "string"}}}
     with pytest.raises(
-        ValueError, match="No schema has been submitted yet. Cannot compare schemas."
+        SchemaNotSubmittedError,
+        match="Schema must be submitted before calling this method.",
     ):
         handler.diff_schema(new_schema)
 

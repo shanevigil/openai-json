@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openai-json"
-version = "0.1.0"
-description = "A Python OpenAI_JSON for processing and structuring JSON responses from the OpenAI API."
+version = "1.0.0"
+description = "A Python library for processing and structuring JSON responses from the OpenAI API."
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
     {name = "Shane Vigil", email = "savigil@gmail.com"}
 ]
-keywords = ["openai", "json", "OpenAI_JSON",]
+keywords = ["openai", "json", "schema", "machine-learning", "api"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
@@ -24,20 +24,6 @@ requires-python = ">=3.8"
 [project.optional-dependencies]
 testing = ["pytest", "pytest-cov"]
 linting = ["flake8", "mypy"]
-
-[tool.setuptools.packages.find]
-where = ["openai_json"]
-
-[tool.mypy]
-files = ["openai_json"]
-
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "--strict-markers --tb=short"
-
-[tool.flake8]
-max-line-length = 88
-exclude = ["env", "build", "dist", "__pycache__"]
 
 [project.urls]
 homepage = "https://github.com/shanevigil/openai-json"
